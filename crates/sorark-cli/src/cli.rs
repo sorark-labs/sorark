@@ -1,8 +1,38 @@
 //! Command-line argument definitions (`clap`) for the `sorark` binary.
 
 use crate::format::OutputFormat;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+use sorark_ir::Severity;
 use std::path::PathBuf;
+
+/// Minimum severity level filter for diagnostic output.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum SeverityFilter {
+    /// Informational diagnostics and notices (`info`).
+    Info,
+    /// Warning-level potential hazards and deprecations (`warning`).
+    Warning,
+    /// Error-level critical bugs, state corruption, or archival exploits (`error`).
+    Error,
+}
+
+impl SeverityFilter {
+    /// Converts this filter to the corresponding [`Severity`].
+    #[must_use]
+    pub const fn to_severity(self) -> Severity {
+        match self {
+            Self::Info => Severity::Info,
+            Self::Warning => Severity::Warning,
+            Self::Error => Severity::Error,
+        }
+    }
+}
+
+impl From<SeverityFilter> for Severity {
+    fn from(filter: SeverityFilter) -> Self {
+        filter.to_severity()
+    }
+}
 
 /// Top-level CLI parser for `sorark`.
 #[derive(Debug, Parser)]
@@ -42,6 +72,10 @@ pub enum Commands {
         /// Filter output to only a specific rule ID (e.g. `ARK-STOR-001`).
         #[arg(long)]
         rule: Option<String>,
+
+        /// Minimum severity level to include in the output (`info`, `warning`, `error`).
+        #[arg(long, value_enum)]
+        min_severity: Option<SeverityFilter>,
     },
 
     /// Check storage-layout (`ScMap`/`ScVec`) and ABI upgrade safety between two contract versions (`v1` vs `v2`).
@@ -57,6 +91,10 @@ pub enum Commands {
         /// Output format (`text`, `json`, `sarif`, `markdown`).
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Minimum severity level to include in the output (`info`, `warning`, `error`).
+        #[arg(long, value_enum)]
+        min_severity: Option<SeverityFilter>,
     },
 
     /// Inspect a compiled Soroban `.wasm` binary's SEP-0048 XDR specification and ledger byte budget.

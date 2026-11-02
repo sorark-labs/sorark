@@ -1,6 +1,6 @@
 //! Execution handlers for each `sorark` CLI subcommand (`lint`, `diff`, `inspect`, `rules`, `init`).
 
-use crate::cli::{Cli, Commands};
+use crate::cli::{Cli, Commands, SeverityFilter};
 use crate::format::{
     OutputFormat, render_diagnostics, render_rule_catalog, render_wasm_inspection,
 };
@@ -20,8 +20,30 @@ pub fn execute(cli: Cli) -> Result<ExitCode> {
     }
 
     match cli.command {
-        Commands::Lint { path, format, rule } => run_lint(&path, format, rule.as_deref(), &config),
-        Commands::Diff { old, new, format } => run_diff(&old, &new, format, &config),
+        Commands::Lint {
+            path,
+            format,
+            rule,
+            min_severity,
+        } => run_lint(
+            &path,
+            format,
+            rule.as_deref(),
+            min_severity.map(SeverityFilter::to_severity),
+            &config,
+        ),
+        Commands::Diff {
+            old,
+            new,
+            format,
+            min_severity,
+        } => run_diff(
+            &old,
+            &new,
+            format,
+            min_severity.map(SeverityFilter::to_severity),
+            &config,
+        ),
         Commands::Inspect { wasm, format } => run_inspect(&wasm, format, &config),
         Commands::Rules { format } => run_rules(format),
         Commands::Init { output, force } => run_init(&output, force),
@@ -33,6 +55,7 @@ fn run_lint(
     path: &Path,
     format: OutputFormat,
     rule_filter: Option<&str>,
+    min_severity: Option<Severity>,
     config: &SorarkConfig,
 ) -> Result<ExitCode> {
     let mut diagnostics = if is_wasm_path(path) {
@@ -43,6 +66,10 @@ fn run_lint(
 
     if let Some(filter) = rule_filter {
         diagnostics.retain(|d| d.rule_id.eq_ignore_ascii_case(filter));
+    }
+
+    if let Some(min) = min_severity {
+        diagnostics.retain(|d| d.severity >= min);
     }
 
     let rendered = render_diagnostics(&diagnostics, format)?;
@@ -58,6 +85,7 @@ fn run_diff(
     old: &Path,
     new: &Path,
     format: OutputFormat,
+    min_severity: Option<Severity>,
     config: &SorarkConfig,
 ) -> Result<ExitCode> {
     let old_module = load_contract_module(old, config).with_context(|| {
@@ -73,7 +101,11 @@ fn run_diff(
         )
     })?;
 
-    let diff_report = compare_contract_modules(&old_module, &new_module, config);
+    let mut diff_report = compare_contract_modules(&old_module, &new_module, config);
+    if let Some(min) = min_severity {
+        diff_report.diagnostics.retain(|d| d.severity >= min);
+    }
+
     let rendered = render_diagnostics(&diff_report.diagnostics, format)?;
     print!("{rendered}");
     Ok(exit_code_for_diagnostics(
