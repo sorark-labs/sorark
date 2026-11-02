@@ -1,5 +1,6 @@
-//! Output formatting dispatchers (`Text`, `Json`, `Sarif`, and `Markdown`) for `sorark-cli`.
+//! Output formatting dispatchers (`Text`, `Json`, `Sarif`, `Markdown`, and `Github`) for `sorark-cli`.
 
+mod github;
 mod inspect;
 mod json;
 mod markdown;
@@ -7,6 +8,7 @@ mod sarif;
 mod text;
 
 use clap::ValueEnum;
+use github::render_diagnostics_github;
 use inspect::render_wasm_inspection_text;
 use json::render_diagnostics_json;
 use markdown::{render_diagnostics_markdown, render_rules_markdown};
@@ -27,6 +29,8 @@ pub enum OutputFormat {
     Sarif,
     /// GitHub-Flavored Markdown table for PR comments and CI job summaries.
     Markdown,
+    /// GitHub Actions workflow command annotations (`::error`, `::warning`, `::notice`).
+    Github,
 }
 
 /// Aggregate count of findings grouped by [`Severity`].
@@ -71,6 +75,7 @@ pub fn render_diagnostics(
         OutputFormat::Json => render_diagnostics_json(diagnostics),
         OutputFormat::Sarif => render_diagnostics_sarif(diagnostics),
         OutputFormat::Markdown => Ok(render_diagnostics_markdown(diagnostics)),
+        OutputFormat::Github => Ok(render_diagnostics_github(diagnostics)),
     }
 }
 
@@ -81,7 +86,9 @@ pub fn render_wasm_inspection(
 ) -> Result<String, serde_json::Error> {
     match format {
         OutputFormat::Json | OutputFormat::Sarif => serde_json::to_string_pretty(report),
-        OutputFormat::Markdown | OutputFormat::Text => Ok(render_wasm_inspection_text(report)),
+        OutputFormat::Markdown | OutputFormat::Text | OutputFormat::Github => {
+            Ok(render_wasm_inspection_text(report))
+        }
     }
 }
 
@@ -93,6 +100,6 @@ pub fn render_rule_catalog(
     match format {
         OutputFormat::Json | OutputFormat::Sarif => serde_json::to_string_pretty(catalog),
         OutputFormat::Markdown => Ok(render_rules_markdown(catalog)),
-        OutputFormat::Text => Ok(render_rules_text(catalog)),
+        OutputFormat::Text | OutputFormat::Github => Ok(render_rules_text(catalog)),
     }
 }

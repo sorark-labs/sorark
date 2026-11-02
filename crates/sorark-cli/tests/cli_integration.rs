@@ -76,6 +76,67 @@ fn cli_diff_catches_storage_and_abi_breakages_between_v1_and_v2_examples() {
 }
 
 #[test]
+fn cli_lint_github_format_emits_workflow_commands() {
+    let example_dir = workspace_root().join("examples/vulnerable-vault");
+    let output = Command::new(sorark_bin())
+        .args(["lint", example_dir.to_str().unwrap(), "--format", "github"])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Verify ::error workflow annotation
+    assert!(
+        stdout.contains("::error file="),
+        "stdout should contain error annotation: {stdout}"
+    );
+    assert!(
+        stdout.contains("title=ARK-STOR-001 (Unbounded Collection in Instance Storage)"),
+        "stdout should format title with rule id: {stdout}"
+    );
+    assert!(
+        stdout.contains("Remediation:"),
+        "stdout should include Remediation: {stdout}"
+    );
+
+    // Verify ::warning workflow annotation
+    assert!(
+        stdout.contains("::warning file="),
+        "stdout should contain warning annotation: {stdout}"
+    );
+    assert!(
+        stdout.contains("title=ARK-STOR-002 (Missing TTL Extension on Persistent/Instance Mutation)"),
+        "stdout should format warning title with rule id: {stdout}"
+    );
+}
+
+#[test]
+fn cli_diff_github_format_emits_workflow_commands() {
+    let v1_dir = workspace_root().join("examples/upgrade-v1");
+    let v2_dir = workspace_root().join("examples/upgrade-v2-broken");
+
+    let output = Command::new(sorark_bin())
+        .args([
+            "diff",
+            "--old",
+            v1_dir.to_str().unwrap(),
+            "--new",
+            v2_dir.to_str().unwrap(),
+            "--format",
+            "github",
+        ])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("::error "));
+    assert!(stdout.contains("ARK-DIFF-001"));
+    assert!(stdout.contains("Remediation:"));
+}
+
+#[test]
 fn cli_sarif_and_wasm_binary_diff_work_end_to_end() {
     let tmp = tempfile::tempdir().unwrap();
     let v1_wasm_path = tmp.path().join("v1.wasm");
