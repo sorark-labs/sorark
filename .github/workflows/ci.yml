@@ -47,3 +47,36 @@ jobs:
           cargo run -p sorark-cli -- inspect examples/upgrade-v1/target/wasm32-unknown-unknown/release/upgrade_v1.wasm
           cargo run -p sorark-cli -- rules
 
+      - name: Self-Test Composite GitHub Action (lint clean contract)
+        id: action-lint
+        uses: ./
+        with:
+          command: lint
+          path: examples/upgrade-v1
+          format: markdown
+          deny-warnings: 'true'
+          step-summary: 'true'
+
+      - name: Self-Test Composite GitHub Action (diff incompatible upgrade)
+        id: action-diff
+        uses: ./
+        with:
+          command: diff
+          old: examples/upgrade-v1
+          new: examples/upgrade-v2-broken
+          format: sarif
+          fail-on-error: 'false'
+
+      - name: Verify Composite Action outputs
+        shell: bash
+        env:
+          LINT_EXIT: ${{ steps.action-lint.outputs.exit-code }}
+          LINT_REPORT: ${{ steps.action-lint.outputs.report-path }}
+          DIFF_EXIT: ${{ steps.action-diff.outputs.exit-code }}
+          DIFF_REPORT: ${{ steps.action-diff.outputs.report-path }}
+        run: |
+          set -euo pipefail
+          test "$LINT_EXIT" = "0"
+          test -f "$LINT_REPORT"
+          test "$DIFF_EXIT" = "1"
+          test -s "$DIFF_REPORT"

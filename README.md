@@ -18,6 +18,7 @@ Unlike generic Rust syntax linters, **SORARK** models Soroban's exact **Three-Ti
 - [Why SORARK Exists (The Stellar Problem It Solves)](#why-sorark-exists-the-stellar-problem-it-solves)
 - [Architecture & Modular Workspace Layout](#architecture--modular-workspace-layout)
 - [Quick Start (Under 2 Minutes)](#quick-start-under-2-minutes)
+- [GitHub Actions CI Integration (`action.yml`)](#github-actions-ci-integration-actionyml)
 - [Real CLI Output Examples](#real-cli-output-examples)
 - [CLI Command & Exit-Code Reference](#cli-command--exit-code-reference)
 - [Built-In Rule Matrix (`sorark rules`)](#built-in-rule-matrix-sorark-rules)
@@ -131,6 +132,91 @@ cargo run -p sorark-cli -- diff --old examples/upgrade-v1 --new examples/upgrade
 cargo run -p sorark-cli -- lint examples/vulnerable-vault --format sarif
 cargo run -p sorark-cli -- diff --old examples/upgrade-v1 --new examples/upgrade-v2-broken --format markdown
 ```
+
+---
+
+## GitHub Actions CI Integration (`action.yml`)
+
+SORARK ships a reusable composite GitHub Action at the repository root so any Stellar Soroban project can gate pull requests on storage-tier safety, TTL state-archival invariants, and `v1`-to-`v2` WASM upgrade compatibility in a single step.
+
+### 1. Lint & PR Step Summary + Upgrade Compatibility Diff
+
+```yaml
+name: Soroban Security & Upgrade Gate
+
+on:
+  pull_request:
+
+jobs:
+  sorark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Lint Soroban contracts for archival & storage-tier hazards
+        uses: sorark-labs/sorark@main
+        with:
+          command: lint
+          path: contracts/vault
+          format: markdown
+          deny-warnings: 'true'
+          step-summary: 'true'
+
+      - name: Check v1-to-v2 WASM storage layout & ABI compatibility
+        uses: sorark-labs/sorark@main
+        with:
+          command: diff
+          old: artifacts/vault_v1.wasm
+          new: target/wasm32-unknown-unknown/release/vault_v2.wasm
+          format: markdown
+          step-summary: 'true'
+```
+
+### 2. Upload SARIF v2.1.0 Findings to GitHub Code Scanning
+
+```yaml
+      - name: Generate SORARK SARIF report
+        id: sorark-sarif
+        uses: sorark-labs/sorark@main
+        with:
+          command: lint
+          path: .
+          format: sarif
+          report-path: sorark-results.sarif
+          fail-on-error: 'false'
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.sorark-sarif.outputs.report-path }}
+
+      - name: Enforce blocking SORARK findings
+        if: steps.sorark-sarif.outputs.exit-code != '0'
+        run: exit ${{ steps.sorark-sarif.outputs.exit-code }}
+```
+
+### Action Inputs & Outputs
+
+| Input | Default | Description |
+| :--- | :--- | :--- |
+| `command` | `lint` | Subcommand to execute (`lint`, `diff`, `inspect`, or `rules`). |
+| `path` | `.` | Target Soroban Rust directory, `.rs` file, or `.wasm` binary for `lint` / `inspect`. |
+| `old` | `""` | Baseline (`v1`) contract path (`.rs` or `.wasm`) when `command: diff`. |
+| `new` | `""` | Candidate (`v2`) contract path (`.rs` or `.wasm`) when `command: diff`. |
+| `format` | `text` | Output format (`text`, `json`, `sarif`, or `markdown`). |
+| `deny-warnings` | `false` | Treat warning-level diagnostics as non-zero exit code failures. |
+| `config` | `""` | Optional path to a `sorark.toml` configuration file. |
+| `rule` | `""` | Optional single rule ID filter when `command: lint` (e.g. `ARK-STOR-001`). |
+| `report-path` | `""` | Optional destination file path for the rendered report (defaults to `$RUNNER_TEMP`). |
+| `step-summary` | `auto` | Append rendered report to `$GITHUB_STEP_SUMMARY` (`true`, `false`, or `auto` for `markdown`). |
+| `fail-on-error` | `true` | Exit non-zero when `sorark` reports blocking findings (set `false` to upload SARIF first). |
+
+| Output | Description |
+| :--- | :--- |
+| `exit-code` | Numeric exit code returned by `sorark` (`0` = clean, `1` = blocking findings, `2` = CLI/config error). |
+| `report-path` | Filesystem path to the generated SORARK report file. |
 
 ---
 

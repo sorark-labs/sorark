@@ -1,0 +1,208 @@
+name: 'SORARK — Soroban Lint & Upgrade Diff'
+description: 'Run SORARK state-archival, storage-tier safety, and v1-to-v2 WASM upgrade compatibility checks for Stellar Soroban contracts.'
+author: 'SORARK Maintainers'
+
+branding:
+  icon: 'shield'
+  color: 'purple'
+
+inputs:
+  command:
+    description: 'SORARK subcommand to execute (`lint`, `diff`, `inspect`, or `rules`).'
+    required: false
+    default: 'lint'
+  path:
+    description: 'Target Soroban contract directory, `.rs` file, or `.wasm` binary (used by `lint` and `inspect`).'
+    required: false
+    default: '.'
+  old:
+    description: 'Baseline (`v1`) contract path (Rust source directory, `.rs` file, or `.wasm` binary) when `command` is `diff`.'
+    required: false
+    default: ''
+  new:
+    description: 'Candidate (`v2`) contract path (Rust source directory, `.rs` file, or `.wasm` binary) when `command` is `diff`.'
+    required: false
+    default: ''
+  format:
+    description: 'Report output format (`text`, `json`, `sarif`, or `markdown`).'
+    required: false
+    default: 'text'
+  deny-warnings:
+    description: 'Treat warning-level diagnostics as non-zero exit code failures (`true` or `false`).'
+    required: false
+    default: 'false'
+  config:
+    description: 'Optional path to a `sorark.toml` configuration file.'
+    required: false
+    default: ''
+  rule:
+    description: 'Optional rule ID filter when `command` is `lint` (for example, `ARK-STOR-001`).'
+    required: false
+    default: ''
+  report-path:
+    description: 'Optional file path where rendered SORARK output is written. Defaults to a temporary file under `$RUNNER_TEMP`.'
+    required: false
+    default: ''
+  step-summary:
+    description: 'Append rendered output to `$GITHUB_STEP_SUMMARY` (`true` or `false`). Defaults to `true` when `format` is `markdown`.'
+    required: false
+    default: 'auto'
+  fail-on-error:
+    description: 'Fail the workflow step when `sorark` returns a non-zero exit code (`true` or `false`). Set `false` to upload SARIF before gating.'
+    required: false
+    default: 'true'
+
+outputs:
+  exit-code:
+    description: 'Numeric exit code returned by `sorark` (`0` = clean, `1` = blocking findings, `2` = CLI/config error).'
+    value: ${{ steps.sorark-exec.outputs.exit-code }}
+  report-path:
+    description: 'Filesystem path to the generated SORARK report artifact.'
+    value: ${{ steps.sorark-exec.outputs.report-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Locate or build sorark CLI
+      id: sorark-bin
+      shell: bash
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        if command -v sorark >/dev/null 2>&1; then
+          BIN_PATH="$(command -v sorark)"
+        elif [ -x "${CARGO_TARGET_DIR:-$PWD/target}/release/sorark" ]; then
+          BIN_PATH="${CARGO_TARGET_DIR:-$PWD/target}/release/sorark"
+        elif [ -x "${CARGO_TARGET_DIR:-$PWD/target}/debug/sorark" ]; then
+          BIN_PATH="${CARGO_TARGET_DIR:-$PWD/target}/debug/sorark"
+        elif [ -x "$ACTION_PATH/target/release/sorark" ]; then
+          BIN_PATH="$ACTION_PATH/target/release/sorark"
+        elif [ -x "$ACTION_PATH/target/debug/sorark" ]; then
+          BIN_PATH="$ACTION_PATH/target/debug/sorark"
+        else
+          cargo build --manifest-path "$ACTION_PATH/Cargo.toml" -p sorark-cli --release --locked
+          BIN_PATH="$ACTION_PATH/target/release/sorark"
+        fi
+        echo "bin=$BIN_PATH" >> "$GITHUB_OUTPUT"
+
+    - name: Run SORARK analysis
+      id: sorark-exec
+      shell: bash
+      env:
+        SORARK_BIN: ${{ steps.sorark-bin.outputs.bin }}
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_OLD: ${{ inputs.old }}
+        INPUT_NEW: ${{ inputs.new }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_DENY_WARNINGS: ${{ inputs.deny-warnings }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_RULE: ${{ inputs.rule }}
+        INPUT_REPORT_PATH: ${{ inputs.report-path }}
+        INPUT_STEP_SUMMARY: ${{ inputs.step-summary }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+      run: |
+        set -uo pipefail
+
+        case "$INPUT_FORMAT" in
+          text|json|sarif|markdown) ;;
+          *)
+            echo "::error::Unsupported format '$INPUT_FORMAT'. Expected one of: text, json, sarif, markdown."
+            exit 2
+            ;;
+        esac
+
+        ARGS=()
+        if [ -n "$INPUT_CONFIG" ]; then
+          ARGS+=(--config "$INPUT_CONFIG")
+        fi
+        if [ "$INPUT_DENY_WARNINGS" = "true" ]; then
+          ARGS+=(--deny-warnings)
+        fi
+
+        case "$INPUT_COMMAND" in
+          lint)
+            ARGS+=(lint "$INPUT_PATH" --format "$INPUT_FORMAT")
+            if [ -n "$INPUT_RULE" ]; then
+              ARGS+=(--rule "$INPUT_RULE")
+            fi
+            ;;
+          diff)
+            if [ -z "$INPUT_OLD" ] || [ -z "$INPUT_NEW" ]; then
+              echo "::error::Inputs 'old' and 'new' are both required when command is 'diff'."
+              exit 2
+            fi
+            ARGS+=(diff --old "$INPUT_OLD" --new "$INPUT_NEW" --format "$INPUT_FORMAT")
+            ;;
+          inspect)
+            if [ "$INPUT_FORMAT" = "sarif" ]; then
+              echo "::error::Format 'sarif' is not supported for 'inspect'. Expected one of: text, json, markdown."
+              exit 2
+            fi
+            ARGS+=(inspect "$INPUT_PATH" --format "$INPUT_FORMAT")
+            ;;
+          rules)
+            if [ "$INPUT_FORMAT" = "sarif" ]; then
+              echo "::error::Format 'sarif' is not supported for 'rules'. Expected one of: text, json, markdown."
+              exit 2
+            fi
+            ARGS+=(rules --format "$INPUT_FORMAT")
+            ;;
+          *)
+            echo "::error::Unsupported command '$INPUT_COMMAND'. Expected one of: lint, diff, inspect, rules."
+            exit 2
+            ;;
+        esac
+
+        if [ -n "$INPUT_REPORT_PATH" ]; then
+          REPORT_FILE="$INPUT_REPORT_PATH"
+          if [[ "$REPORT_FILE" == */* ]]; then
+            mkdir -p "${REPORT_FILE%/*}"
+          fi
+        else
+          EXT="txt"
+          case "$INPUT_FORMAT" in
+            json) EXT="json" ;;
+            sarif) EXT="sarif" ;;
+            markdown) EXT="md" ;;
+          esac
+          TEMP_ROOT="${RUNNER_TEMP:-/tmp}"
+          mkdir -p "$TEMP_ROOT"
+          REPORT_FILE="$TEMP_ROOT/sorark-${INPUT_COMMAND}-report.$EXT"
+        fi
+
+        set +e
+        "$SORARK_BIN" "${ARGS[@]}" > "$REPORT_FILE"
+        EXIT_CODE=$?
+        set -e
+
+        cat "$REPORT_FILE"
+
+        echo "exit-code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+        echo "report-path=$REPORT_FILE" >> "$GITHUB_OUTPUT"
+
+        WRITE_SUMMARY="false"
+        if [ "$INPUT_STEP_SUMMARY" = "true" ]; then
+          WRITE_SUMMARY="true"
+        elif [ "$INPUT_STEP_SUMMARY" = "auto" ] && [ "$INPUT_FORMAT" = "markdown" ]; then
+          WRITE_SUMMARY="true"
+        fi
+
+        if [ "$WRITE_SUMMARY" = "true" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          {
+            printf '### SORARK `%s` Report (exit code `%s`)\n\n' "$INPUT_COMMAND" "$EXIT_CODE"
+            if [ "$INPUT_FORMAT" = "markdown" ]; then
+              cat "$REPORT_FILE"
+            else
+              printf '```%s\n' "$INPUT_FORMAT"
+              cat "$REPORT_FILE"
+              printf '\n```\n'
+            fi
+            printf '\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
+        if [ "$EXIT_CODE" -ne 0 ] && [ "$INPUT_FAIL_ON_ERROR" != "false" ]; then
+          exit "$EXIT_CODE"
+        fi
