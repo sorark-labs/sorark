@@ -1,6 +1,6 @@
 # Contributing to SORARK (`sorark`)
 
-Thank you for contributing to **SORARK**! Whether you are joining us through a **Drips Stellar Wave** sprint or contributing independently to improve Stellar Soroban security and upgrade tooling, this guide covers everything you need to get productive quickly.
+Thank you for contributing to **SORARK**! This guide covers everything you need to set up your environment, implement new static analysis or upgrade diff rules, and submit a pull request.
 
 ---
 
@@ -61,10 +61,9 @@ cargo test --workspace
 
 ---
 
-## 4. Drips Stellar Wave Guidelines
+## 4. Pull Request Workflow
 
-During active **Stellar Wave** sprints on [drips.network/wave/stellar](https://www.drips.network/wave/stellar):
-1. Apply to the issue on Drips Wave and comment on the GitHub issue with your implementation plan.
+1. Check open issues or [`ROADMAP.md`](./ROADMAP.md) and comment on the issue you are working on.
 2. Reference the issue number (`Closes #<id>`) in your Pull Request description.
 3. Ensure every new feature or rule includes unit tests and updates `sorark rules` catalog metadata if applicable.
-4. Keep PRs focused on the single assigned issue so maintainers can review and merge within 24 hours.
+4. Keep PRs focused on a single feature or bug fix for straightforward review.

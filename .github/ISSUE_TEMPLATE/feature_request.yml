@@ -1,0 +1,28 @@
+name: Feature or Rule Proposal
+description: Propose a new Soroban static analysis rule, diff check, or CLI capability
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Stellar / Soroban Problem Statement
+      description: What Soroban vulnerability, State Archival hazard, or upgrade pitfall does this proposal address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Rule or Feature Design
+      description: Describe how SORARK should detect or solve this across Rust AST (`sorark-ast`), WASM (`sorark-wasm`), or upgrade diffs (`sorark-diff`).
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Vulnerable vs. Safe Example (Optional)
+      description: Provide an example of code that should trigger the rule and code that should pass cleanly.
+    validations:
+      required: false

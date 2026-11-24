@@ -1,0 +1,46 @@
+name: Bug Report / False Positive
+description: Report a bug, crash, false positive, or false negative in SORARK
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      options:
+        - sorark-ast (Rust source static analyzer)
+        - sorark-wasm (WASM SEP-0048 XDR inspector)
+        - sorark-diff (v1 vs v2 upgrade compatibility engine)
+        - sorark-cli (CLI flags, config, or output formatters)
+        - sorark-ir (Contract IR or rule catalog)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clearly describe the bug, false positive, or unexpected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproducer
+    attributes:
+      label: Minimal Soroban Contract Reproducer
+      description: Paste a minimal Soroban Rust snippet or command that reproduces the issue.
+      placeholder: |
+        ```rust
+        #[contract]
+        pub struct MyContract;
+        ```
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: SORARK & Rust Version
+      placeholder: "sorark 0.1.0 / rustc 1.87.0"
+    validations:
+      required: false
