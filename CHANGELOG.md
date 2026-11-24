@@ -5,6 +5,15 @@ All notable changes to **SORARK** (`sorark`) will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-11-24
+
+### Added
+- **Git Revision Diffing (`sorark diff --old-rev <ref> --new-rev <ref>`):** Directly compare Soroban contract storage layouts, events, and ABIs across two git commits, branches, or tags without manual checkouts.
+- **Exact XDR Ledger Entry Byte Size Estimator (`ARK-FOOT-001`):** Added `FootprintEstimator` in `sorark-ir` and `LargeFixedStructFootprintRule` (`ARK-FOOT-001`) in `sorark-ast` calculating exact serialized `ScVal`/`ScMap`/`ScVec` byte sizes for fixed-size `#[contracttype]` definitions.
+- **Auto-Remediation Unified Diff Patches (`sorark lint --suggest-patch`):** Generates unified diff patches suggesting `extend_ttl` insertions for `ARK-STOR-002` findings.
+- **Composite GitHub Action (`action.yml`):** Added a root composite GitHub Action supporting `lint` and `diff` (including `--old-rev`/`--new-rev` and `--sep41`).
+- **SEP-41 Reference Token Contract (`examples/sep41-token`):** Added a complete, production-safe `#![no_std]` Stellar SEP-41 token contract implementing all 10 `TokenInterface` entrypoints and verified in CI.
+
 ## [0.3.0] - 2026-11-24
 
 ### Added

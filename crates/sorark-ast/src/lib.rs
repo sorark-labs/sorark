@@ -19,9 +19,9 @@ pub use parser::{
 };
 pub use rules::{
     AstRule, CriticalStateInTempStorageRule, InvalidSymbolLiteralRule, InvalidTtlBoundsRule,
-    LoopStorageAccessRule, MissingExtendTtlRule, MissingUpgradeMechanismRule,
-    RedundantHasBeforeGetRule, UnboundedInstanceStorageRule, UnprotectedWasmUpgradeRule,
-    default_ast_rules,
+    LargeFixedStructFootprintRule, LoopStorageAccessRule, MissingExtendTtlRule,
+    MissingUpgradeMechanismRule, RedundantHasBeforeGetRule, UnboundedInstanceStorageRule,
+    UnprotectedWasmUpgradeRule, default_ast_rules,
 };
 pub use scanner::{AstScanReport, run_rules_on_context, scan_rust_path};
 
@@ -300,5 +300,25 @@ mod tests {
         assert_eq!(ev.prefix_topics, vec!["deposit_event".to_string()]);
         assert!(ev.params[0].is_topic);
         assert!(!ev.params[1].is_topic);
+    }
+
+    #[test]
+    fn detects_oversized_fixed_struct_xdr_footprint() {
+        let src = r#"
+            use soroban_sdk::{contracttype, BytesN};
+
+            #[contracttype]
+            pub struct HugeSnapshot {
+                pub chunk_a: BytesN<2048>,
+                pub chunk_b: BytesN<2048>,
+                pub chunk_c: BytesN<2048>,
+            }
+        "#;
+        let ctx = parse_single_source("snapshot", "src/lib.rs", src).unwrap();
+        let diags = run_rules_on_context(&ctx, &SorarkConfig::default());
+        assert!(
+            diags.iter().any(|d| d.rule_id == "ARK-FOOT-001"),
+            "Expected ARK-FOOT-001 for >4 KiB fixed struct, got: {diags:#?}"
+        );
     }
 }

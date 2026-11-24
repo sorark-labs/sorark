@@ -44,6 +44,7 @@ jobs:
       - name: Self-Dogfood SORARK CLI on Example Contracts & Compiled WASMs
         run: |
           cargo run -p sorark-cli -- --deny-warnings lint examples/upgrade-v1
+          cargo run -p sorark-cli -- --deny-warnings lint examples/sep41-token --sep41
           cargo run -p sorark-cli -- inspect examples/upgrade-v1/target/wasm32-unknown-unknown/release/upgrade_v1.wasm
           cargo run -p sorark-cli -- rules
 

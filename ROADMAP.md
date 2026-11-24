@@ -25,10 +25,10 @@ This document tracks planned features, static analysis rules, and ecosystem inte
 
 ---
 
-## Milestone `v0.4.0` — Git Revision Diffing, Auto-Fixes & Ecosystem Benchmarks
+## Milestone `v0.4.0` — Git Revision Diffing, Auto-Fixes & Ecosystem Benchmarks (Completed)
 
-- [ ] **Git Revision Diffing (`sorark diff --old-rev <ref> --new-rev <ref>`):** Compare two git commits, tags, or branches directly without checking out separate working trees.
-- [ ] **XDR Ledger Entry Byte Estimator (`ARK-FOOT-001`):** Statically estimate serialized `ScVal` / `ScMap` byte overhead for fixed-size `#[contracttype]` structs and keys.
-- [ ] **Auto-Remediation Suggestions (`sorark lint --suggest-patch`):** Output unified diffs suggesting `extend_ttl` insertions for `ARK-STOR-002` findings.
-- [ ] **Turnkey Composite GitHub Action (`action.yml`):** Allow Soroban repositories to run `sorark lint` and `sorark diff` in CI with a single workflow step.
-- [ ] **Real-World Ecosystem Corpus Benchmarks:** Continuously test and benchmark `sorark` against upstream open-source Soroban contracts (`stellar/soroban-examples`, OpenZeppelin Soroban contracts, and DeFi protocols).
+- [x] **Git Revision Diffing (`sorark diff --old-rev <ref> --new-rev <ref>`):** Compare two git commits, tags, or branches directly without checking out separate working trees.
+- [x] **XDR Ledger Entry Byte Estimator (`ARK-FOOT-001`):** Statically estimate serialized `ScVal` / `ScMap` byte overhead for fixed-size `#[contracttype]` structs and keys.
+- [x] **Auto-Remediation Suggestions (`sorark lint --suggest-patch`):** Output unified diffs suggesting `extend_ttl` insertions for `ARK-STOR-002` findings.
+- [x] **Turnkey Composite GitHub Action (`action.yml`):** Allow Soroban repositories to run `sorark lint` and `sorark diff` in CI with a single workflow step.
+- [x] **SEP-41 Compliant `#![no_std]` Reference Token (`examples/sep41-token`):** Bundle and continuously verify a complete Stellar SEP-41 token contract in CI.

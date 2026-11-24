@@ -18,8 +18,9 @@ pub use diagnostic::{
 };
 pub use model::{
     ContractModule, EnumSpec, EnumVariantSpec, ErrorEnumSpec, EventParamSpec, EventSpec,
-    FunctionParamSpec, FunctionSpec, SourceOrigin, StorageTier, StructFieldSpec, StructSpec,
-    TupleStructSpec, TypeRef, UnionCaseSpec, UnionSpec, check_sep41_conformance,
+    FootprintEstimator, FunctionParamSpec, FunctionSpec, SourceOrigin, StorageTier,
+    StructFieldSpec, StructSpec, TupleStructSpec, TypeRef, UnionCaseSpec, UnionSpec,
+    check_sep41_conformance, estimate_sc_symbol_xdr_bytes,
 };
 
 #[cfg(test)]
@@ -119,7 +120,45 @@ mod tests {
             Severity::Error
         );
         assert!(find_rule_descriptor("ARK-STOR-005").is_some());
-        assert_eq!(builtin_rule_catalog().len(), 19);
+        assert_eq!(builtin_rule_catalog().len(), 20);
+    }
+
+    #[test]
+    fn xdr_footprint_estimator_calculates_exact_struct_byte_size() {
+        let mut module = ContractModule::new(
+            "oracle",
+            SourceOrigin::RustSource {
+                path: "src/lib.rs".to_string(),
+            },
+        );
+        module.structs.push(StructSpec {
+            name: "PriceFeed".to_string(),
+            fields: vec![
+                StructFieldSpec {
+                    name: "admin".to_string(),
+                    ty: TypeRef::Address,
+                    line: Some(10),
+                },
+                StructFieldSpec {
+                    name: "price".to_string(),
+                    ty: TypeRef::I128,
+                    line: Some(11),
+                },
+                StructFieldSpec {
+                    name: "blob".to_string(),
+                    ty: TypeRef::BytesN(1024),
+                    line: Some(12),
+                },
+            ],
+            file: Some("src/lib.rs".to_string()),
+            line: Some(9),
+        });
+
+        let estimated = module
+            .estimate_type_xdr_bytes(&TypeRef::Custom("PriceFeed".to_string()))
+            .unwrap();
+        // ScMap header (12) + 3 * ScSymbol(5 chars -> 16 bytes each = 48) + Address(40) + I128(20) + BytesN(1024 -> 1032) = 1152
+        assert_eq!(estimated, 1152);
     }
 
     #[test]

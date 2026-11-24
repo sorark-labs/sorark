@@ -19,7 +19,7 @@ pub struct RuleDescriptor {
 /// Complete catalog of built-in SORARK rules across AST, WASM, SEP-41, and Upgrade Diff engines.
 #[must_use]
 pub fn builtin_rule_catalog() -> Vec<RuleDescriptor> {
-    let mut rules = Vec::with_capacity(19);
+    let mut rules = Vec::with_capacity(20);
     rules.extend(ast_rule_descriptors());
     rules.extend(wasm_rule_descriptors());
     rules.extend(diff_rule_descriptors());
@@ -34,8 +34,8 @@ pub fn find_rule_descriptor(rule_id: &str) -> Option<RuleDescriptor> {
         .find(|r| r.id.eq_ignore_ascii_case(rule_id.trim()))
 }
 
-/// Descriptors for the 9 Pass-2 Rust AST static analysis rules (`ARK-STOR-*`, `ARK-UPG-*`).
-fn ast_rule_descriptors() -> [RuleDescriptor; 9] {
+/// Descriptors for the 10 Pass-2 Rust AST static analysis rules (`ARK-STOR-*`, `ARK-UPG-*`, `ARK-FOOT-*`).
+fn ast_rule_descriptors() -> [RuleDescriptor; 10] {
     [
         RuleDescriptor {
             id: "ARK-STOR-001",
@@ -180,6 +180,24 @@ impl Vault {
         admin.require_auth();
         env.deployer().update_current_contract_wasm(new_wasm_hash);
     }
+}"#,
+        },
+        RuleDescriptor {
+            id: "ARK-FOOT-001",
+            title: "Oversized Fixed-Size `#[contracttype]` XDR Ledger Entry Footprint",
+            category: RuleCategory::ResourceBudget,
+            default_severity: Severity::Warning,
+            description: "Calculates the exact serialized Stellar XDR (`ScMap`/`ScVec`) byte overhead of fixed-size `#[contracttype]` structs and warns when a struct exceeds `struct_warn_xdr_bytes` (default: 4 KiB) or approaches the 64 KiB ledger entry ceiling.",
+            remediation: "Split large monolithic structs or fixed `BytesN<N>` blobs into smaller domain-specific `persistent()` ledger entries so transactions only pay read/write rent for fields they actually access.",
+            bad_example: r#"#[contracttype]
+pub struct MonolithicOracleSnapshot {
+    pub payload_a: BytesN<2048>,
+    pub payload_b: BytesN<2048>,
+    pub payload_c: BytesN<2048>,
+}"#,
+            good_example: r#"#[contracttype]
+pub enum DataKey {
+    FeedChunk(u32), // Split large blobs into individual persistent keys
 }"#,
         },
     ]

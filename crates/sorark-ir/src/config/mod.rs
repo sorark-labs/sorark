@@ -58,6 +58,9 @@ pub struct SorarkConfig {
     pub wasm_max_initial_memory_pages: u64,
     /// Maximum recommended exported WASM symbol count (default: 64).
     pub wasm_max_exports: usize,
+    /// Serialized XDR byte size threshold for a fixed-size `#[contracttype]` struct/tuple
+    /// above which `ARK-FOOT-001` emits a warning (default: `4096` bytes / 4 KiB).
+    pub struct_warn_xdr_bytes: usize,
     /// List of rule IDs disabled globally (e.g. `["ARK-UPG-002"]`).
     pub disabled_rules: Vec<String>,
     /// Directory or file path substrings to exclude when scanning directories.
@@ -78,6 +81,7 @@ impl Default for SorarkConfig {
             wasm_max_bytes: MAINNET_LEDGER_ENTRY_MAX_BYTES,
             wasm_max_initial_memory_pages: 16,
             wasm_max_exports: 64,
+            struct_warn_xdr_bytes: 4096,
             disabled_rules: Vec::new(),
             exclude_paths: vec!["target".to_string(), ".git".to_string()],
             fail_on_warnings: false,

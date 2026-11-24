@@ -16,6 +16,7 @@ mod loop_storage;
 mod missing_ttl;
 mod missing_upgrade;
 mod redundant_has;
+mod struct_footprint;
 mod symbol_length;
 mod temp_critical_state;
 mod unbounded_instance;
@@ -26,6 +27,7 @@ pub use loop_storage::LoopStorageAccessRule;
 pub use missing_ttl::MissingExtendTtlRule;
 pub use missing_upgrade::MissingUpgradeMechanismRule;
 pub use redundant_has::RedundantHasBeforeGetRule;
+pub use struct_footprint::LargeFixedStructFootprintRule;
 pub use symbol_length::InvalidSymbolLiteralRule;
 pub use temp_critical_state::CriticalStateInTempStorageRule;
 pub use unbounded_instance::UnboundedInstanceStorageRule;
@@ -64,5 +66,6 @@ pub fn default_ast_rules() -> Vec<Box<dyn AstRule>> {
         Box::new(InvalidSymbolLiteralRule),
         Box::new(UnprotectedWasmUpgradeRule),
         Box::new(MissingUpgradeMechanismRule),
+        Box::new(LargeFixedStructFootprintRule),
     ]
 }

@@ -220,4 +220,103 @@ fn cli_supports_min_severity_filter_github_format_and_rule_explain() {
         sep41_stdout.contains("ARK-SEP-041"),
         "Expected ARK-SEP-041 diagnostics, got: {sep41_stdout}"
     );
+
+    // 5. `sorark --deny-warnings lint examples/sep41-token --sep41` passes with 0 errors and 0 warnings
+    let sep41_pass = Command::new(sorark_bin())
+        .args([
+            "--deny-warnings",
+            "lint",
+            workspace_root()
+                .join("examples/sep41-token")
+                .to_str()
+                .unwrap(),
+            "--sep41",
+        ])
+        .output()
+        .unwrap();
+    let sep41_pass_stdout = String::from_utf8_lossy(&sep41_pass.stdout);
+    assert_eq!(
+        sep41_pass.status.code(),
+        Some(0),
+        "sep41-token failed lint: {sep41_pass_stdout}"
+    );
+
+    // 6. `sorark lint --suggest-patch` emits a unified diff patch for ARK-STOR-002
+    let patch_out = Command::new(sorark_bin())
+        .args(["lint", example_dir.to_str().unwrap(), "--suggest-patch"])
+        .output()
+        .unwrap();
+    let patch_stdout = String::from_utf8_lossy(&patch_out.stdout);
+    assert!(
+        patch_stdout.contains("+++ b/") && patch_stdout.contains("+env.storage()."),
+        "Expected unified diff patch in stdout, got: {patch_stdout}"
+    );
+}
+
+#[test]
+fn cli_diff_supports_git_revisions_end_to_end() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = tmp.path();
+
+    let run_git = |args: &[&str]| {
+        let status = Command::new("git")
+            .current_dir(repo)
+            .args(args)
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?} failed");
+    };
+
+    run_git(&["init"]);
+    run_git(&["config", "user.email", "test@sorark.dev"]);
+    run_git(&["config", "user.name", "SORARK Test"]);
+
+    std::fs::write(
+        repo.join("lib.rs"),
+        r#"
+        use soroban_sdk::{contracttype, Address};
+        #[contracttype]
+        pub struct Position {
+            pub owner: Address,
+            pub shares: i128,
+        }
+        "#,
+    )
+    .unwrap();
+    run_git(&["add", "lib.rs"]);
+    run_git(&["commit", "-m", "v1 baseline"]);
+
+    std::fs::write(
+        repo.join("lib.rs"),
+        r#"
+        use soroban_sdk::{contracttype, Address};
+        #[contracttype]
+        pub struct Position {
+            pub owner: Address,
+            pub locked_shares: u64,
+        }
+        "#,
+    )
+    .unwrap();
+    run_git(&["add", "lib.rs"]);
+    run_git(&["commit", "-m", "v2 breaking storage change"]);
+
+    let diff_out = Command::new(sorark_bin())
+        .args([
+            "diff",
+            "--old-rev",
+            "HEAD~1",
+            "--new-rev",
+            "HEAD",
+            "--path",
+            repo.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&diff_out.stdout);
+    assert_eq!(diff_out.status.code(), Some(1), "stdout: {stdout}");
+    assert!(
+        stdout.contains("ARK-DIFF-001"),
+        "Expected ARK-DIFF-001 from git revision diff, got: {stdout}"
+    );
 }

@@ -1,8 +1,8 @@
 //! The [`ContractModule`] aggregate: one normalized view of a Soroban contract.
 
 use super::{
-    EnumSpec, ErrorEnumSpec, EventSpec, FunctionSpec, SourceOrigin, StructSpec, TupleStructSpec,
-    TypeRef, UnionSpec, unbounded::UnboundedAnalyzer,
+    EnumSpec, ErrorEnumSpec, EventSpec, FootprintEstimator, FunctionSpec, SourceOrigin, StructSpec,
+    TupleStructSpec, TypeRef, UnionSpec, unbounded::UnboundedAnalyzer,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -97,6 +97,13 @@ impl ContractModule {
     #[must_use]
     pub fn unbounded_reason_chain(&self, ty: &TypeRef) -> Option<String> {
         UnboundedAnalyzer::new(self).explain(ty)
+    }
+
+    /// Estimates the exact worst-case Stellar XDR serialized byte size of `ty` if it is
+    /// fixed-size, or returns `None` if `ty` is unbounded/dynamic.
+    #[must_use]
+    pub fn estimate_type_xdr_bytes(&self, ty: &TypeRef) -> Option<usize> {
+        FootprintEstimator::new(self).estimate_xdr_bytes(ty)
     }
 
     /// Builds a lookup map of struct names to their definitions.

@@ -1,0 +1,85 @@
+name: "SORARK Soroban Smart Contract Analyzer"
+description: "Static State Archival, 64 KiB Storage-Tier Safety, SEP-41 Token Conformance, and Upgrade-Compatibility Analyzer for Stellar Soroban"
+author: "SORARK Maintainers"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  command:
+    description: "SORARK subcommand to run (`lint` or `diff`)"
+    required: false
+    default: "lint"
+  path:
+    description: "Target Soroban project directory, .rs file, or compiled .wasm binary (used by `lint` and git-revision `diff`)"
+    required: false
+    default: "."
+  old:
+    description: "Baseline (v1) contract path for `diff`"
+    required: false
+    default: ""
+  new:
+    description: "Candidate (v2) contract path for `diff`"
+    required: false
+    default: ""
+  old-rev:
+    description: "Baseline (v1) Git revision for `diff --old-rev`"
+    required: false
+    default: ""
+  new-rev:
+    description: "Candidate (v2) Git revision for `diff --new-rev`"
+    required: false
+    default: ""
+  format:
+    description: "Output format (`text`, `github`, `json`, `sarif`, `markdown`)"
+    required: false
+    default: "github"
+  min-severity:
+    description: "Minimum severity threshold (`info`, `warning`, `error`)"
+    required: false
+    default: "info"
+  deny-warnings:
+    description: "Fail with a non-zero exit code on warning diagnostics (`true` or `false`)"
+    required: false
+    default: "false"
+  sep41:
+    description: "Verify Stellar SEP-41 Token Interface conformance (`true` or `false`)"
+    required: false
+    default: "false"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Build or install sorark CLI
+      shell: bash
+      run: |
+        if ! command -v sorark &> /dev/null; then
+          cargo install --path "${{ github.action_path }}/crates/sorark-cli" --locked
+        fi
+
+    - name: Run SORARK Analysis
+      shell: bash
+      run: |
+        GLOBAL_ARGS=()
+        if [ "${{ inputs.deny-warnings }}" = "true" ]; then
+          GLOBAL_ARGS+=("--deny-warnings")
+        fi
+
+        if [ "${{ inputs.command }}" = "lint" ]; then
+          CMD_ARGS=("lint" "${{ inputs.path }}" "--format" "${{ inputs.format }}" "--min-severity" "${{ inputs.min-severity }}")
+          if [ "${{ inputs.sep41 }}" = "true" ]; then
+            CMD_ARGS+=("--sep41")
+          fi
+          sorark "${GLOBAL_ARGS[@]}" "${CMD_ARGS[@]}"
+        elif [ "${{ inputs.command }}" = "diff" ]; then
+          CMD_ARGS=("diff" "--format" "${{ inputs.format }}" "--min-severity" "${{ inputs.min-severity }}")
+          if [ -n "${{ inputs.old-rev }}" ] && [ -n "${{ inputs.new-rev }}" ]; then
+            CMD_ARGS+=("--old-rev" "${{ inputs.old-rev }}" "--new-rev" "${{ inputs.new-rev }}" "--path" "${{ inputs.path }}")
+          else
+            CMD_ARGS+=("--old" "${{ inputs.old }}" "--new" "${{ inputs.new }}")
+          fi
+          sorark "${GLOBAL_ARGS[@]}" "${CMD_ARGS[@]}"
+        else
+          echo "Unsupported command: ${{ inputs.command }}" >&2
+          exit 2
+        fi

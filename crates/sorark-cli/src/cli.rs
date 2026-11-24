@@ -11,7 +11,7 @@ use std::path::PathBuf;
     name = "sorark",
     version,
     about = "SORARK: State Archival, Storage-Tier Safety, and Upgrade-Compatibility Analyzer for Stellar Soroban",
-    long_about = "Analyzes Stellar Soroban smart contracts (Rust source and compiled .wasm binaries) for 64 KiB instance storage bombs, missing extend_ttl archival hazards, temporary storage exploits, redundant/loop storage accesses, and state-corrupting v1-to-v2 upgrade mutations."
+    long_about = "Analyzes Stellar Soroban smart contracts (Rust source and compiled .wasm binaries) for 64 KiB instance storage bombs, missing extend_ttl archival hazards, temporary storage exploits, redundant/loop storage accesses, XDR ledger footprint sizes, and state-corrupting v1-to-v2 upgrade mutations."
 )]
 pub struct Cli {
     /// Path to an optional `sorark.toml` configuration file.
@@ -51,17 +51,33 @@ pub enum Commands {
         /// Also verify that the contract implements the standard Stellar SEP-41 Token Interface (`ARK-SEP-041`).
         #[arg(long)]
         sep41: bool,
+
+        /// Emit a unified diff patch suggesting `extend_ttl` insertions for `ARK-STOR-002` findings.
+        #[arg(long)]
+        suggest_patch: bool,
     },
 
     /// Check storage-layout (`ScMap`/`ScVec`) and ABI upgrade safety between two contract versions (`v1` vs `v2`).
     Diff {
         /// Path to the baseline (`v1`) contract (Rust directory, `.rs` file, or `.wasm` binary).
         #[arg(long)]
-        old: PathBuf,
+        old: Option<PathBuf>,
 
         /// Path to the candidate (`v2`) contract (Rust directory, `.rs` file, or `.wasm` binary).
         #[arg(long)]
-        new: PathBuf,
+        new: Option<PathBuf>,
+
+        /// Git revision (branch, tag, or commit SHA) for the baseline (`v1`) contract.
+        #[arg(long)]
+        old_rev: Option<String>,
+
+        /// Git revision (branch, tag, or commit SHA) for the candidate (`v2`) contract.
+        #[arg(long)]
+        new_rev: Option<String>,
+
+        /// Repository or contract subdirectory path when using `--old-rev` and `--new-rev`.
+        #[arg(long, default_value = ".")]
+        path: PathBuf,
 
         /// Output format (`text`, `json`, `sarif`, `markdown`, `github`).
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
