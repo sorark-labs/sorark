@@ -1,7 +1,7 @@
 //! Formatter for `sorark inspect` WebAssembly SEP-0048 contract specification reports.
 
 use super::text::render_diagnostics_text;
-use sorark_ir::{EnumSpec, FunctionSpec, StructSpec, TupleStructSpec, UnionSpec};
+use sorark_ir::{EnumSpec, EventSpec, FunctionSpec, StructSpec, TupleStructSpec, UnionSpec};
 use sorark_wasm::WasmInspectionReport;
 use std::fmt::Write as _;
 
@@ -14,6 +14,7 @@ pub(super) fn render_wasm_inspection_text(report: &WasmInspectionReport) -> Stri
     append_tuple_structs(&mut out, &report.module.tuple_structs);
     append_unions(&mut out, &report.module.unions);
     append_enums(&mut out, &report.module.enums);
+    append_events(&mut out, &report.module.events);
     append_functions(&mut out, &report.module.functions);
 
     if !report.diagnostics.is_empty() {
@@ -117,6 +118,17 @@ fn append_enums(out: &mut String, enums: &[EnumSpec]) {
             .map(|v| format!("{} = {}", v.name, v.discriminant))
             .collect();
         let _ = writeln!(out, "  - enum {} {{ {} }}", e.name, vars.join(", "));
+    }
+}
+
+/// Appends decoded `#[contractevent]` specifications (`ScSpecEventV0`).
+fn append_events(out: &mut String, events: &[EventSpec]) {
+    if events.is_empty() {
+        return;
+    }
+    out.push_str("\n#[contractevent] Events (ScSpecEventV0):\n");
+    for ev in events {
+        let _ = writeln!(out, "  - event {}", ev.signature());
     }
 }
 

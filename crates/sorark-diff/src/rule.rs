@@ -1,8 +1,8 @@
 //! Core [`DiffRule`] trait and default rule registry for `sorark-diff`.
 
 use crate::rules::{
-    EnumAndUnionLayoutDiffRule, ErrorEnumDiffRule, FunctionAbiDiffRule, ProtocolVersionDiffRule,
-    StructLayoutDiffRule,
+    ConstructorMigrationDiffRule, EnumAndUnionLayoutDiffRule, ErrorEnumDiffRule,
+    EventSchemaDiffRule, FunctionAbiDiffRule, ProtocolVersionDiffRule, StructLayoutDiffRule,
 };
 use sorark_ir::{ContractModule, Diagnostic, RuleCategory, Severity, SorarkConfig};
 
@@ -30,7 +30,7 @@ pub trait DiffRule: Send + Sync {
     ) -> Vec<Diagnostic>;
 }
 
-/// Returns the default suite of Soroban upgrade compatibility rules (`ARK-DIFF-001`..`ARK-DIFF-005`).
+/// Returns the default suite of Soroban upgrade compatibility rules (`ARK-DIFF-001`..`ARK-DIFF-006`, `ARK-UPG-003`).
 #[must_use]
 pub fn default_diff_rules() -> Vec<Box<dyn DiffRule>> {
     vec![
@@ -39,5 +39,7 @@ pub fn default_diff_rules() -> Vec<Box<dyn DiffRule>> {
         Box::new(FunctionAbiDiffRule),
         Box::new(ErrorEnumDiffRule),
         Box::new(ProtocolVersionDiffRule),
+        Box::new(EventSchemaDiffRule),
+        Box::new(ConstructorMigrationDiffRule),
     ]
 }

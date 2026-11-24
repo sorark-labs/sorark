@@ -13,16 +13,17 @@ pub mod rules;
 pub use report::{DiffReport, compare_contract_modules};
 pub use rule::{DiffRule, default_diff_rules};
 pub use rules::{
-    EnumAndUnionLayoutDiffRule, ErrorEnumDiffRule, FunctionAbiDiffRule, ProtocolVersionDiffRule,
-    StructLayoutDiffRule,
+    ConstructorMigrationDiffRule, EnumAndUnionLayoutDiffRule, ErrorEnumDiffRule,
+    EventSchemaDiffRule, FunctionAbiDiffRule, ProtocolVersionDiffRule, StructLayoutDiffRule,
 };
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use sorark_ir::{
-        ContractModule, EnumVariantSpec, ErrorEnumSpec, FunctionParamSpec, FunctionSpec,
-        SorarkConfig, SourceOrigin, StructFieldSpec, StructSpec, TypeRef, UnionCaseSpec, UnionSpec,
+        ContractModule, EnumVariantSpec, ErrorEnumSpec, EventParamSpec, EventSpec,
+        FunctionParamSpec, FunctionSpec, SorarkConfig, SourceOrigin, StructFieldSpec, StructSpec,
+        TypeRef, UnionCaseSpec, UnionSpec,
     };
 
     #[test]
@@ -174,6 +175,103 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|d| d.rule_id == "ARK-DIFF-004")
+        );
+    }
+
+    #[test]
+    fn catches_event_schema_breakage_and_constructor_change_without_migrate() {
+        let mut v1 = ContractModule::new(
+            "token_v1",
+            SourceOrigin::RustSource {
+                path: "v1/lib.rs".to_string(),
+            },
+        );
+        v1.functions.push(FunctionSpec {
+            name: "__constructor".to_string(),
+            params: vec![FunctionParamSpec {
+                name: "admin".to_string(),
+                ty: TypeRef::Address,
+            }],
+            return_type: TypeRef::Void,
+            file: Some("v1/lib.rs".to_string()),
+            line: Some(10),
+        });
+        v1.events.push(EventSpec {
+            name: "TransferEvent".to_string(),
+            prefix_topics: vec!["transfer_event".to_string()],
+            params: vec![
+                EventParamSpec {
+                    name: "from".to_string(),
+                    ty: TypeRef::Address,
+                    is_topic: true,
+                },
+                EventParamSpec {
+                    name: "amount".to_string(),
+                    ty: TypeRef::I128,
+                    is_topic: false,
+                },
+            ],
+            file: Some("v1/lib.rs".to_string()),
+            line: Some(20),
+        });
+
+        let mut v2 = ContractModule::new(
+            "token_v2",
+            SourceOrigin::RustSource {
+                path: "v2/lib.rs".to_string(),
+            },
+        );
+        v2.functions.push(FunctionSpec {
+            name: "__constructor".to_string(),
+            params: vec![
+                FunctionParamSpec {
+                    name: "admin".to_string(),
+                    ty: TypeRef::Address,
+                },
+                FunctionParamSpec {
+                    name: "fee_bps".to_string(),
+                    ty: TypeRef::U32,
+                },
+            ],
+            return_type: TypeRef::Void,
+            file: Some("v2/lib.rs".to_string()),
+            line: Some(10),
+        });
+        v2.events.push(EventSpec {
+            name: "TransferEvent".to_string(),
+            prefix_topics: vec!["transfer_event".to_string()],
+            params: vec![
+                EventParamSpec {
+                    name: "from".to_string(),
+                    ty: TypeRef::Address,
+                    is_topic: false,
+                },
+                EventParamSpec {
+                    name: "amount".to_string(),
+                    ty: TypeRef::I128,
+                    is_topic: false,
+                },
+            ],
+            file: Some("v2/lib.rs".to_string()),
+            line: Some(20),
+        });
+
+        let report = compare_contract_modules(&v1, &v2, &SorarkConfig::default());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.rule_id == "ARK-DIFF-006"),
+            "Expected ARK-DIFF-006, got: {:#?}",
+            report.diagnostics
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.rule_id == "ARK-UPG-003"),
+            "Expected ARK-UPG-003, got: {:#?}",
+            report.diagnostics
         );
     }
 }

@@ -201,4 +201,23 @@ fn cli_supports_min_severity_filter_github_format_and_rule_explain() {
     assert!(explain_stdout.contains("ARK-STOR-005"));
     assert!(explain_stdout.contains("Vulnerable Example:"));
     assert!(explain_stdout.contains("Remediated Example:"));
+
+    // 4. `sorark lint --sep41` flags missing SEP-41 token interface entrypoints on a non-token contract
+    let sep41_out = Command::new(sorark_bin())
+        .args([
+            "lint",
+            workspace_root()
+                .join("examples/upgrade-v1")
+                .to_str()
+                .unwrap(),
+            "--sep41",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(sep41_out.status.code(), Some(1));
+    let sep41_stdout = String::from_utf8_lossy(&sep41_out.stdout);
+    assert!(
+        sep41_stdout.contains("ARK-SEP-041"),
+        "Expected ARK-SEP-041 diagnostics, got: {sep41_stdout}"
+    );
 }

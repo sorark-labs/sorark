@@ -47,6 +47,10 @@ pub enum Commands {
         /// Filter output to diagnostics at or above this severity (`info`, `warning`, `error`).
         #[arg(long)]
         min_severity: Option<Severity>,
+
+        /// Also verify that the contract implements the standard Stellar SEP-41 Token Interface (`ARK-SEP-041`).
+        #[arg(long)]
+        sep41: bool,
     },
 
     /// Check storage-layout (`ScMap`/`ScVec`) and ABI upgrade safety between two contract versions (`v1` vs `v2`).

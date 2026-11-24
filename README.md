@@ -1,7 +1,7 @@
 # SORARK (`sorark`)
 
 [![CI](https://github.com/sorark-labs/sorark/actions/workflows/ci.yml/badge.svg)](https://github.com/sorark-labs/sorark/actions/workflows/ci.yml)
-[![Release v0.2.0](https://img.shields.io/github/v/release/sorark-labs/sorark?label=Release&color=brightgreen)](https://github.com/sorark-labs/sorark/releases/tag/v0.2.0)
+[![Release v0.3.0](https://img.shields.io/github/v/release/sorark-labs/sorark?label=Release&color=brightgreen)](https://github.com/sorark-labs/sorark/releases/tag/v0.3.0)
 [![Rust 1.87+ (2024 Edition)](https://img.shields.io/badge/Rust-1.87%2B_(2024_Edition)-orange.svg)](https://www.rust-lang.org/)
 [![Stellar Soroban SEP-0048](https://img.shields.io/badge/Stellar-Soroban_SEP--0048_XDR-blue.svg)](https://developers.stellar.org/)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-green.svg)](./LICENSE)
@@ -213,10 +213,10 @@ Global Options:
 
 | Subcommand | Usage | Description |
 | :--- | :--- | :--- |
-| **`lint`** | `sorark lint [PATH] [--format <FMT>] [--rule <ID>] [--min-severity <SEV>]` | Analyzes a Soroban Rust directory, `.rs` file, or compiled `.wasm` binary for storage-tier, TTL, resource-budget, and upgrade-auth hazards. |
-| **`diff`** | `sorark diff --old <V1> --new <V2> [--format <FMT>] [--min-severity <SEV>]` | Compares `v1` and `v2` contracts (Rust source or `.wasm` binaries in any combination) for `ScVal` storage layout corruption and ABI breakages. |
+| **`lint`** | `sorark lint [PATH] [--format <FMT>] [--rule <ID>] [--min-severity <SEV>] [--sep41]` | Analyzes a Soroban Rust directory, `.rs` file, or compiled `.wasm` binary for storage-tier, TTL, resource-budget, SEP-41 conformance, and upgrade-auth hazards. |
+| **`diff`** | `sorark diff --old <V1> --new <V2> [--format <FMT>] [--min-severity <SEV>]` | Compares `v1` and `v2` contracts (Rust source or `.wasm` binaries in any combination) for `ScVal` storage layout corruption, event schema changes, and ABI breakages. |
 | **`inspect`** | `sorark inspect <WASM> [--format <FMT>]` | Decodes a `.wasm` binary's SEP-0048 `contractspecv0`, `contractenvmetav0`, and `contractmetav0` XDR sections and checks the 64 KiB ledger byte budget. |
-| **`rules`** | `sorark rules [--explain <RULE_ID>] [--format <FMT>]` | Lists all 15 built-in analysis rules, categories, default severities, and remediations, or explains a specific rule with vulnerable vs. fixed code examples. |
+| **`rules`** | `sorark rules [--explain <RULE_ID>] [--format <FMT>]` | Lists all 19 built-in analysis rules, categories, default severities, and remediations, or explains a specific rule with vulnerable vs. fixed code examples. |
 | **`init`** | `sorark init [--output <PATH>] [--force]` | Generates a documented `sorark.toml` configuration file in the project root. |
 
 ### Deterministic CI Exit Codes
@@ -239,12 +239,16 @@ Global Options:
 | **`ARK-STOR-007`** | `storage-safety` | **Error** | `sorark-ast` | Invalid Soroban `Symbol` literal length (`symbol_short!` > 9 chars or `Symbol::new` > 32 chars) or characters outside `[a-zA-Z0-9_]`. |
 | **`ARK-UPG-001`** | `upgrade-auth` | **Error** | `sorark-ast` | `env.deployer().update_current_contract_wasm(...)` invoked without a dominating `require_auth()` check. |
 | **`ARK-UPG-002`** | `upgrade-auth` | **Info** | `sorark-ast` | Stateful contract defines administrative storage mutations but exposes no `update_current_contract_wasm` upgrade handler. |
+| **`ARK-UPG-003`** | `upgrade-auth` | **Warning** | `sorark-diff` | `v2` adds or modifies `__constructor` parameters relative to `v1` without exposing a `migrate` entrypoint. |
 | **`ARK-WASM-001`** | `resource-budget` | **Warning / Error** | `sorark-wasm` | Compiled `.wasm` binary exceeds ledger byte budget (48 KiB warning / 64 KiB error) or lacks SEP-0048 `contractspecv0` / `contractenvmetav0` sections. |
+| **`ARK-WASM-002`** | `resource-budget` | **Warning** | `sorark-wasm` | Compiled `.wasm` binary requests excessive initial linear memory pages (> 16 pages / 1 MiB) or exports > 64 symbols. |
+| **`ARK-SEP-041`** | `abi-compatibility` | **Error** | `sorark-ir` | Contract fails to implement one or more required Stellar SEP-41 `TokenInterface` entrypoints (`--sep41`). |
 | **`ARK-DIFF-001`** | `storage-compatibility` | **Error** | `sorark-diff` | Incompatible `#[contracttype]` struct (`ScMap`) field removal/rename/type change or positional tuple struct (`ScVec`) mutation between `v1` and `v2`. |
 | **`ARK-DIFF-002`** | `storage-compatibility` | **Error** | `sorark-diff` | Incompatible `#[contracttype]` enum (`ScSpecUdtEnumV0`) discriminant shift or tagged union (`ScSpecUdtUnionV0`) `DataKey` payload mutation. |
 | **`ARK-DIFF-003`** | `abi-compatibility` | **Warning** | `sorark-diff` | Breaking public contract entrypoint signature change (removed function, altered parameter types, or changed return type). |
 | **`ARK-DIFF-004`** | `abi-compatibility` | **Warning** | `sorark-diff` | Mutated or removed `#[contracterror]` variant or shifted numeric error code (`ScSpecUdtErrorEnumV0`). |
 | **`ARK-DIFF-005`** | `abi-compatibility` | **Warning / Error** | `sorark-diff` | Soroban environment protocol version regression (`Error`) or advance (`Info`) in `contractenvmetav0` between `v1` and `v2` WASM builds. |
+| **`ARK-DIFF-006`** | `abi-compatibility` | **Warning** | `sorark-diff` | Breaking `#[contractevent]` / `ScSpecEventV0` schema mutation (removed event, changed prefix topics, or mutated topic/data fields). |
 
 ---
 

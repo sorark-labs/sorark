@@ -5,6 +5,15 @@ All notable changes to **SORARK** (`sorark`) will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-24
+
+### Added
+- **Cross-File Workspace Call-Graph Resolution (`sorark-ast`):** Resolve module-qualified helper calls (`storage::extend_balance_ttl(&env)`, `crate::auth::require_admin(&env)`) across multi-file Soroban contract crates and inline submodules.
+- **`ARK-SEP-041` (`sorark-ir` & `sorark-cli`):** Stellar SEP-41 Token Interface conformance checker (`sorark lint --sep41`) validating all 10 required `TokenInterface` entrypoints across `.rs` and `.wasm` targets.
+- **`ARK-DIFF-006` (`sorark-diff`, `sorark-ast`, `sorark-wasm`):** Full `#[contractevent]` AST extraction and SEP-0048 `ScSpecEntry::EventV0` XDR decoding, plus event topic/data schema compatibility checking between `v1` and `v2`.
+- **`ARK-UPG-003` (`sorark-diff`):** Detects modified or newly added `__constructor` signatures in `v2` without an accompanying `migrate` entrypoint.
+- **`ARK-WASM-002` (`sorark-wasm`):** Flags compiled `.wasm` binaries requesting excessive initial linear memory pages (`wasm_max_initial_memory_pages`) or exporting an excessive number of symbols (`wasm_max_exports`).
+
 ## [0.2.0] - 2026-11-24
 
 ### Added

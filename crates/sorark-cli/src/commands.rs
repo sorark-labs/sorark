@@ -9,7 +9,8 @@ use anyhow::{Context, Result, bail};
 use sorark_ast::scan_rust_path;
 use sorark_diff::compare_contract_modules;
 use sorark_ir::{
-    ContractModule, Diagnostic, Severity, SorarkConfig, builtin_rule_catalog, find_rule_descriptor,
+    ContractModule, Diagnostic, Severity, SorarkConfig, builtin_rule_catalog,
+    check_sep41_conformance, find_rule_descriptor,
 };
 use sorark_wasm::inspect_wasm_file;
 use std::path::Path;
@@ -28,7 +29,8 @@ pub fn execute(cli: Cli) -> Result<ExitCode> {
             format,
             rule,
             min_severity,
-        } => run_lint(&path, format, rule.as_deref(), min_severity, &config),
+            sep41,
+        } => run_lint(&path, format, rule.as_deref(), min_severity, sep41, &config),
         Commands::Diff {
             old,
             new,
@@ -47,13 +49,20 @@ fn run_lint(
     format: OutputFormat,
     rule_filter: Option<&str>,
     min_severity: Option<Severity>,
+    verify_sep41: bool,
     config: &SorarkConfig,
 ) -> Result<ExitCode> {
-    let mut diagnostics = if is_wasm_path(path) {
-        inspect_wasm_file(path, config)?.diagnostics
+    let (module, mut diagnostics) = if is_wasm_path(path) {
+        let report = inspect_wasm_file(path, config)?;
+        (report.module, report.diagnostics)
     } else {
-        scan_rust_path(path, config)?.diagnostics
+        let report = scan_rust_path(path, config)?;
+        (report.context.module, report.diagnostics)
     };
+
+    if verify_sep41 {
+        diagnostics.extend(check_sep41_conformance(&module, config));
+    }
 
     if let Some(filter) = rule_filter {
         diagnostics.retain(|d| d.rule_id.eq_ignore_ascii_case(filter));

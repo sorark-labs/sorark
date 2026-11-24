@@ -15,13 +15,13 @@ This document tracks planned features, static analysis rules, and ecosystem inte
 
 ---
 
-## Milestone `v0.3.0` — Multi-File Call Graphs, SEP-41 & Event Diffing
+## Milestone `v0.3.0` — Multi-File Call Graphs, SEP-41 & Event Diffing (Completed)
 
-- [ ] **Cross-File Workspace Call-Graph Resolution (`sorark-ast`):** Resolve module-qualified helper functions (e.g., `storage::bump_instance(&env)`, `auth::require_admin(&env)`) across multi-file Soroban contract crates.
-- [ ] **`ARK-SEP-041` (SEP-41 Token Interface Conformance):** Verify whether a contract (from `.rs` or `.wasm`) implements the Stellar SEP-41 token specification (`allowance`, `approve`, `balance`, `transfer`, `transfer_from`, `burn`, `burn_from`, `decimals`, `name`, `symbol`) with exact parameter and return types.
-- [ ] **`ARK-DIFF-006` (`#[contractevent]` / `ScSpecEntry::EventV0` Schema Compatibility):** Decode Soroban contract event specifications from AST and WASM XDR sections and detect breaking event topic or payload changes between `v1` and `v2`.
-- [ ] **`ARK-UPG-003` (`__constructor` Upgrade Assumption Detection):** Warn when a `v2` upgrade modifies `__constructor` parameters without introducing a dedicated `migrate` entrypoint (since `update_current_contract_wasm` does not re-run `__constructor`).
-- [ ] **`ARK-WASM-002` (WASM Linear Memory & Export Footprint):** Flag excessive initial WASM linear memory pages or exported entrypoint counts in `sorark-wasm`.
+- [x] **Cross-File Workspace Call-Graph Resolution (`sorark-ast`):** Resolve module-qualified helper functions (e.g., `storage::bump_instance(&env)`, `auth::require_admin(&env)`) across multi-file Soroban contract crates.
+- [x] **`ARK-SEP-041` (SEP-41 Token Interface Conformance):** Verify whether a contract (from `.rs` or `.wasm`) implements the Stellar SEP-41 token specification (`allowance`, `approve`, `balance`, `transfer`, `transfer_from`, `burn`, `burn_from`, `decimals`, `name`, `symbol`) with exact parameter and return types.
+- [x] **`ARK-DIFF-006` (`#[contractevent]` / `ScSpecEntry::EventV0` Schema Compatibility):** Decode Soroban contract event specifications from AST and WASM XDR sections and detect breaking event topic or payload changes between `v1` and `v2`.
+- [x] **`ARK-UPG-003` (`__constructor` Upgrade Assumption Detection):** Warn when a `v2` upgrade modifies `__constructor` parameters without introducing a dedicated `migrate` entrypoint (since `update_current_contract_wasm` does not re-run `__constructor`).
+- [x] **`ARK-WASM-002` (WASM Linear Memory & Export Footprint):** Flag excessive initial WASM linear memory pages or exported entrypoint counts in `sorark-wasm`.
 
 ---
 
