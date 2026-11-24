@@ -11,15 +11,70 @@ pub(crate) fn evaluate_wasm_diagnostics(
     metrics: &WasmMetrics,
     config: &SorarkConfig,
 ) -> Vec<Diagnostic> {
-    if !config.is_rule_enabled("ARK-WASM-001") {
-        return Vec::new();
-    }
-
     let mut out = Vec::new();
-    check_wasm_byte_size(path_label, metrics, config, &mut out);
-    check_required_custom_sections(path_label, metrics, &mut out);
+    if config.is_rule_enabled("ARK-WASM-001") {
+        check_wasm_byte_size(path_label, metrics, config, &mut out);
+        check_required_custom_sections(path_label, metrics, &mut out);
+    }
+    if config.is_rule_enabled("ARK-WASM-002") {
+        check_wasm_memory_and_exports(path_label, metrics, config, &mut out);
+    }
     config.apply_severity_overrides(&mut out);
     out
+}
+
+/// Checks `ARK-WASM-002`: excessive initial WASM linear memory pages or exported symbol count.
+fn check_wasm_memory_and_exports(
+    path_label: &str,
+    metrics: &WasmMetrics,
+    config: &SorarkConfig,
+    out: &mut Vec<Diagnostic>,
+) {
+    if let Some(pages) = metrics.initial_memory_pages
+        && pages > config.wasm_max_initial_memory_pages
+    {
+        out.push(
+            Diagnostic::builder(
+                "ARK-WASM-002",
+                "Excessive WASM Initial Linear Memory Pages",
+                RuleCategory::ResourceBudget,
+                Severity::Warning,
+            )
+            .confidence(Confidence::High)
+            .message(format!(
+                "WASM binary `{path_label}` requests {pages} initial linear memory pages ({} KiB), exceeding the configured threshold of {} pages ({} KiB).",
+                pages * 64,
+                config.wasm_max_initial_memory_pages,
+                config.wasm_max_initial_memory_pages * 64
+            ))
+            .help(
+                "Avoid large static buffers in `#![no_std]` Soroban contracts; allocate dynamic collections via Soroban host types (`Vec`, `Map`, `Bytes`).",
+            )
+            .span(SourceSpan::new(path_label, 1, 1))
+            .build(),
+        );
+    }
+
+    if metrics.export_count > config.wasm_max_exports {
+        out.push(
+            Diagnostic::builder(
+                "ARK-WASM-002",
+                "Excessive WASM Exported Symbol Count",
+                RuleCategory::ResourceBudget,
+                Severity::Warning,
+            )
+            .confidence(Confidence::High)
+            .message(format!(
+                "WASM binary `{path_label}` exports {} WebAssembly symbols, exceeding the configured threshold of {} exports.",
+                metrics.export_count, config.wasm_max_exports
+            ))
+            .help(
+                "Restrict `#[contractimpl]` public methods to required external entrypoints and move internal utilities into non-exported helper functions.",
+            )
+            .span(SourceSpan::new(path_label, 1, 1))
+            .build(),
+        );
+    }
 }
 
 /// Checks whether the `.wasm` binary exceeds the error or warning byte-size thresholds.

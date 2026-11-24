@@ -17,9 +17,9 @@ pub use diagnostic::{
     builtin_rule_catalog, find_rule_descriptor,
 };
 pub use model::{
-    ContractModule, EnumSpec, EnumVariantSpec, ErrorEnumSpec, FunctionParamSpec, FunctionSpec,
-    SourceOrigin, StorageTier, StructFieldSpec, StructSpec, TupleStructSpec, TypeRef,
-    UnionCaseSpec, UnionSpec,
+    ContractModule, EnumSpec, EnumVariantSpec, ErrorEnumSpec, EventParamSpec, EventSpec,
+    FunctionParamSpec, FunctionSpec, SourceOrigin, StorageTier, StructFieldSpec, StructSpec,
+    TupleStructSpec, TypeRef, UnionCaseSpec, UnionSpec, check_sep41_conformance,
 };
 
 #[cfg(test)]
@@ -119,7 +119,36 @@ mod tests {
             Severity::Error
         );
         assert!(find_rule_descriptor("ARK-STOR-005").is_some());
-        assert_eq!(builtin_rule_catalog().len(), 15);
+        assert_eq!(builtin_rule_catalog().len(), 19);
+    }
+
+    #[test]
+    fn sep41_conformance_checker_flags_missing_and_mistyped_token_methods() {
+        let mut module = ContractModule::new(
+            "partial_token",
+            SourceOrigin::RustSource {
+                path: "src/lib.rs".to_string(),
+            },
+        );
+        // `balance` returning `U64` instead of required `I128`
+        module.functions.push(FunctionSpec {
+            name: "balance".to_string(),
+            params: vec![FunctionParamSpec {
+                name: "id".to_string(),
+                ty: TypeRef::Address,
+            }],
+            return_type: TypeRef::U64,
+            file: Some("src/lib.rs".to_string()),
+            line: Some(15),
+        });
+
+        let diags = check_sep41_conformance(&module, &SorarkConfig::default());
+        assert_eq!(diags.len(), 10);
+        assert!(diags.iter().all(|d| d.rule_id == "ARK-SEP-041"));
+        assert!(diags.iter().any(|d| {
+            d.message
+                .contains("does not match the SEP-41 specification")
+        }));
     }
 
     #[test]

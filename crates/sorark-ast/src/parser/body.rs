@@ -74,6 +74,7 @@ impl<'a> FnBodyAnalyzer<'a> {
     ) -> ParsedFunction {
         ParsedFunction {
             name,
+            qualified_name: None,
             is_contract_entrypoint,
             is_pub,
             file: file.to_string(),
@@ -307,10 +308,22 @@ impl<'ast> Visit<'ast> for FnBodyAnalyzer<'_> {
     fn visit_expr_call(&mut self, node: &'ast ExprCall) {
         visit::visit_expr_call(self, node);
         self.check_symbol_new_call(node);
-        if let Expr::Path(ExprPath { path, .. }) = &*node.func
-            && let Some(last) = path.segments.last()
-        {
-            self.called_functions.push(last.ident.to_string());
+        if let Expr::Path(ExprPath { path, .. }) = &*node.func {
+            let segs: Vec<String> = path
+                .segments
+                .iter()
+                .map(|s| s.ident.to_string())
+                .filter(|s| !matches!(s.as_str(), "crate" | "self" | "super" | "Self"))
+                .collect();
+            if segs.len() >= 2 {
+                self.called_functions.push(format!(
+                    "{}::{}",
+                    segs[segs.len() - 2],
+                    segs[segs.len() - 1]
+                ));
+            } else if let Some(last) = segs.last() {
+                self.called_functions.push(last.clone());
+            }
         }
     }
 }

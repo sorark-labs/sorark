@@ -137,6 +137,45 @@ pub struct FunctionSpec {
     pub line: Option<usize>,
 }
 
+/// Parameter (topic or data payload field) of a Soroban contract event (`ScSpecEventParamV0`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventParamSpec {
+    pub name: String,
+    pub ty: TypeRef,
+    /// `true` if the field is emitted in the event topic list (`#[topic]` / `TopicList`),
+    /// `false` if emitted in the event data payload (`Data`).
+    pub is_topic: bool,
+}
+
+/// Exported Soroban contract event specification (`ScSpecEventV0` / `#[contractevent]`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EventSpec {
+    pub name: String,
+    pub prefix_topics: Vec<String>,
+    pub params: Vec<EventParamSpec>,
+    pub file: Option<String>,
+    pub line: Option<usize>,
+}
+
+impl EventSpec {
+    /// Returns a human-readable signature of the event's topics and data fields.
+    #[must_use]
+    pub fn signature(&self) -> String {
+        let fields: Vec<String> = self
+            .params
+            .iter()
+            .map(|p| {
+                if p.is_topic {
+                    format!("#[topic] {}: {}", p.name, p.ty)
+                } else {
+                    format!("{}: {}", p.name, p.ty)
+                }
+            })
+            .collect();
+        format!("{} {{ {} }}", self.name, fields.join(", "))
+    }
+}
+
 impl FunctionSpec {
     /// Renders the parameter list as `name: Type, ...`.
     #[must_use]

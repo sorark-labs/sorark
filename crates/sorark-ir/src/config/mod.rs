@@ -54,6 +54,10 @@ pub struct SorarkConfig {
     pub wasm_warn_bytes: usize,
     /// Compiled `.wasm` size hard ceiling (in bytes) that triggers an error.
     pub wasm_max_bytes: usize,
+    /// Maximum recommended initial WASM linear memory pages (64 KiB each; default: 16 pages / 1 MiB).
+    pub wasm_max_initial_memory_pages: u64,
+    /// Maximum recommended exported WASM symbol count (default: 64).
+    pub wasm_max_exports: usize,
     /// List of rule IDs disabled globally (e.g. `["ARK-UPG-002"]`).
     pub disabled_rules: Vec<String>,
     /// Directory or file path substrings to exclude when scanning directories.
@@ -72,6 +76,8 @@ impl Default for SorarkConfig {
             max_entry_ttl: MAINNET_MAX_ENTRY_TTL,
             wasm_warn_bytes: DEFAULT_WASM_WARN_BYTES,
             wasm_max_bytes: MAINNET_LEDGER_ENTRY_MAX_BYTES,
+            wasm_max_initial_memory_pages: 16,
+            wasm_max_exports: 64,
             disabled_rules: Vec::new(),
             exclude_paths: vec!["target".to_string(), ".git".to_string()],
             fail_on_warnings: false,

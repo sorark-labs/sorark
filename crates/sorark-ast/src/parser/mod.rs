@@ -24,8 +24,8 @@ pub use types::syn_type_to_typeref;
 
 use const_eval::eval_u64_expr;
 use items::{
-    analyze_free_fn, has_soroban_attr, parse_contracterror_enum, parse_contracttype_enum,
-    parse_contracttype_struct, parse_impl_block,
+    analyze_free_fn, has_soroban_attr, parse_contracterror_enum, parse_contractevent_struct,
+    parse_contracttype_enum, parse_contracttype_struct, parse_impl_block,
 };
 use sorark_ir::{ContractModule, SourceOrigin};
 use std::collections::HashMap;
@@ -79,17 +79,38 @@ fn collect_module_constants(items: &[Item], constants: &mut HashMap<String, u64>
     }
 }
 
-/// Second pass over top-level structs, enums, impl blocks, and free helper functions.
+/// Second pass over top-level structs, enums, impl blocks, inline modules, and free helper functions.
 fn collect_module_items(
     file_label: &str,
     source_lines: &[&str],
     items: &[Item],
     ctx: &mut AstAnalysisContext,
 ) {
+    let file_mod_prefix = module_prefix_from_file_label(file_label);
+    collect_items_with_prefix(
+        file_label,
+        source_lines,
+        items,
+        file_mod_prefix.as_deref(),
+        ctx,
+    );
+}
+
+fn collect_items_with_prefix(
+    file_label: &str,
+    source_lines: &[&str],
+    items: &[Item],
+    mod_prefix: Option<&str>,
+    ctx: &mut AstAnalysisContext,
+) {
     for item in items {
         match item {
-            Item::Struct(s) if has_soroban_attr(&s.attrs, "contracttype") => {
-                parse_contracttype_struct(file_label, s, &mut ctx.module);
+            Item::Struct(s) => {
+                if has_soroban_attr(&s.attrs, "contracttype") {
+                    parse_contracttype_struct(file_label, s, &mut ctx.module);
+                } else if has_soroban_attr(&s.attrs, "contractevent") {
+                    parse_contractevent_struct(file_label, s, &mut ctx.module);
+                }
             }
             Item::Enum(e) => {
                 if has_soroban_attr(&e.attrs, "contracttype") {
@@ -111,10 +132,38 @@ fn collect_module_items(
                 );
             }
             Item::Fn(func) => {
-                let parsed = analyze_free_fn(file_label, source_lines, func, &ctx.constants);
+                let mut parsed = analyze_free_fn(file_label, source_lines, func, &ctx.constants);
+                if let Some(prefix) = mod_prefix {
+                    parsed.qualified_name = Some(format!("{prefix}::{}", parsed.name));
+                }
                 ctx.functions.push(parsed);
+            }
+            Item::Mod(m) => {
+                if let Some((_, inner_items)) = &m.content {
+                    let sub_name = m.ident.to_string();
+                    collect_module_constants(inner_items, &mut ctx.constants);
+                    collect_items_with_prefix(
+                        file_label,
+                        source_lines,
+                        inner_items,
+                        Some(&sub_name),
+                        ctx,
+                    );
+                }
             }
             _ => {}
         }
+    }
+}
+
+/// Derives an optional Rust module stem from a source file path (e.g. `src/storage.rs` -> `Some("storage")`).
+fn module_prefix_from_file_label(file_label: &str) -> Option<String> {
+    let stem = std::path::Path::new(file_label)
+        .file_stem()
+        .and_then(|s| s.to_str())?;
+    if matches!(stem, "lib" | "main" | "mod") {
+        None
+    } else {
+        Some(stem.to_string())
     }
 }

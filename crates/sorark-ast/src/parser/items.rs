@@ -5,8 +5,9 @@ use super::const_eval::{eval_u64_expr, pat_to_ident_string};
 use super::context::ParsedFunction;
 use super::types::syn_type_to_typeref;
 use sorark_ir::{
-    ContractModule, EnumSpec, EnumVariantSpec, ErrorEnumSpec, FunctionParamSpec, FunctionSpec,
-    StructFieldSpec, StructSpec, TupleStructSpec, TypeRef, UnionCaseSpec, UnionSpec,
+    ContractModule, EnumSpec, EnumVariantSpec, ErrorEnumSpec, EventParamSpec, EventSpec,
+    FunctionParamSpec, FunctionSpec, StructFieldSpec, StructSpec, TupleStructSpec, TypeRef,
+    UnionCaseSpec, UnionSpec,
 };
 use std::collections::HashMap;
 use syn::spanned::Spanned;
@@ -69,6 +70,63 @@ pub fn parse_contracttype_struct(file_label: &str, s: &ItemStruct, module: &mut 
         }
         Fields::Unit => {}
     }
+}
+
+/// Extracts a `#[contractevent]` struct into [`ContractModule::events`].
+pub fn parse_contractevent_struct(file_label: &str, s: &ItemStruct, module: &mut ContractModule) {
+    let name = s.ident.to_string();
+    let line = Some(s.ident.span().start().line);
+    let prefix_topics = vec![to_snake_case(&name)];
+    let mut params = Vec::new();
+
+    match &s.fields {
+        Fields::Named(named) => {
+            for f in &named.named {
+                if let Some(ident) = &f.ident {
+                    params.push(EventParamSpec {
+                        name: ident.to_string(),
+                        ty: syn_type_to_typeref(&f.ty),
+                        is_topic: has_soroban_attr(&f.attrs, "topic"),
+                    });
+                }
+            }
+        }
+        Fields::Unnamed(unnamed) => {
+            for (idx, f) in unnamed.unnamed.iter().enumerate() {
+                params.push(EventParamSpec {
+                    name: idx.to_string(),
+                    ty: syn_type_to_typeref(&f.ty),
+                    is_topic: has_soroban_attr(&f.attrs, "topic"),
+                });
+            }
+        }
+        Fields::Unit => {}
+    }
+
+    module.events.push(EventSpec {
+        name,
+        prefix_topics,
+        params,
+        file: Some(file_label.to_string()),
+        line,
+    });
+}
+
+/// Converts a `PascalCase` identifier (e.g. `DepositEvent`) into `snake_case` (`deposit_event`)
+/// matching `#[contractevent]` default prefix topic generation.
+fn to_snake_case(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 4);
+    for (idx, ch) in s.chars().enumerate() {
+        if ch.is_ascii_uppercase() {
+            if idx > 0 {
+                out.push('_');
+            }
+            out.push(ch.to_ascii_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
 }
 
 /// Extracts a `#[contracttype]` enum into either [`ContractModule::enums`] (for integer unit enums)

@@ -16,10 +16,10 @@ pub struct RuleDescriptor {
     pub good_example: &'static str,
 }
 
-/// Complete catalog of built-in SORARK rules across AST, WASM, and Upgrade Diff engines.
+/// Complete catalog of built-in SORARK rules across AST, WASM, SEP-41, and Upgrade Diff engines.
 #[must_use]
 pub fn builtin_rule_catalog() -> Vec<RuleDescriptor> {
-    let mut rules = Vec::with_capacity(15);
+    let mut rules = Vec::with_capacity(19);
     rules.extend(ast_rule_descriptors());
     rules.extend(wasm_rule_descriptors());
     rules.extend(diff_rule_descriptors());
@@ -185,29 +185,56 @@ impl Vault {
     ]
 }
 
-/// Descriptors for compiled WebAssembly binary resource and SEP-0048 checks (`ARK-WASM-*`).
-fn wasm_rule_descriptors() -> [RuleDescriptor; 1] {
-    [RuleDescriptor {
-        id: "ARK-WASM-001",
-        title: "WASM Binary Ledger Size Budget & SEP-0048 Metadata Check",
-        category: RuleCategory::ResourceBudget,
-        default_severity: Severity::Warning,
-        description: "Checks compiled .wasm contract size against Stellar ledger size thresholds (48 KiB warning / 64 KiB limit) and verifies presence of contractspecv0 and contractenvmetav0 sections.",
-        remediation: "Enable release optimizations (opt-level = \"z\", lto = true, strip = \"symbols\") in Cargo.toml and compile with stellar contract build.",
-        bad_example: r#"[profile.release]
+/// Descriptors for compiled WebAssembly binary resource and SEP-0048/SEP-0041 checks (`ARK-WASM-*`, `ARK-SEP-*`).
+fn wasm_rule_descriptors() -> [RuleDescriptor; 3] {
+    [
+        RuleDescriptor {
+            id: "ARK-WASM-001",
+            title: "WASM Binary Ledger Size Budget & SEP-0048 Metadata Check",
+            category: RuleCategory::ResourceBudget,
+            default_severity: Severity::Warning,
+            description: "Checks compiled .wasm contract size against Stellar ledger size thresholds (48 KiB warning / 64 KiB limit) and verifies presence of contractspecv0 and contractenvmetav0 sections.",
+            remediation: "Enable release optimizations (opt-level = \"z\", lto = true, strip = \"symbols\") in Cargo.toml and compile with stellar contract build.",
+            bad_example: r#"[profile.release]
 # Unoptimized WASM builds often exceed the 64 KiB Stellar Mainnet ledger limit
 opt-level = 0"#,
-        good_example: r#"[profile.release]
+            good_example: r#"[profile.release]
 opt-level = "z"
 overflow-checks = true
 lto = true
 codegen-units = 1
 strip = "symbols""#,
-    }]
+        },
+        RuleDescriptor {
+            id: "ARK-WASM-002",
+            title: "Excessive WASM Initial Linear Memory Pages or Export Count",
+            category: RuleCategory::ResourceBudget,
+            default_severity: Severity::Warning,
+            description: "Detects compiled .wasm binaries requesting excessive initial linear memory pages (> 16 pages / 1 MiB) or exporting an unusually high number of WebAssembly symbols (> 64 exports), inflating per-invocation Soroban VM memory rent.",
+            remediation: "Avoid large static buffers in #![no_std] contract crates and restrict `pub` exports to intended `#[contractimpl]` entrypoints.",
+            bad_example: r#"// Allocating large static buffers forces high initial WASM linear memory pages
+static SCRATCH_BUFFER: [u8; 2_097_152] = [0; 2_097_152];"#,
+            good_example: r#"// Use Soroban host-managed collections (Bytes, Vec) instead of large static WASM buffers
+let buf = Bytes::new(&env);"#,
+        },
+        RuleDescriptor {
+            id: "ARK-SEP-041",
+            title: "Missing or Non-Conformant SEP-41 Token Interface Entrypoint",
+            category: RuleCategory::AbiCompatibility,
+            default_severity: Severity::Error,
+            description: "Verifies whether a Soroban token contract (.rs or .wasm) implements all 10 required Stellar SEP-41 TokenInterface methods (allowance, approve, balance, transfer, transfer_from, burn, burn_from, decimals, name, symbol) with exact parameter and return types.",
+            remediation: "Implement `soroban_sdk::token::TokenInterface` on your `#[contractimpl]` struct so all 10 SEP-41 signatures match the standard.",
+            bad_example: r#"// Non-conformant SEP-41 balance signature (returns u64 instead of i128)
+pub fn balance(env: Env, id: Address) -> u64"#,
+            good_example: r#"pub fn balance(env: Env, id: Address) -> i128 {
+    env.storage().persistent().get(&DataKey::Balance(id)).unwrap_or(0)
+}"#,
+        },
+    ]
 }
 
-/// Descriptors for the 5 upgrade storage-layout and ABI compatibility rules (`ARK-DIFF-*`).
-fn diff_rule_descriptors() -> [RuleDescriptor; 5] {
+/// Descriptors for the 7 upgrade storage-layout, constructor, event, and ABI compatibility rules (`ARK-DIFF-*`, `ARK-UPG-003`).
+fn diff_rule_descriptors() -> [RuleDescriptor; 7] {
     [
         RuleDescriptor {
             id: "ARK-DIFF-001",
@@ -293,6 +320,40 @@ pub enum VaultError {
             bad_example: r#"# v1 compiled with Soroban Protocol 22
 # v2 compiled with an older toolchain targeting Soroban Protocol 20"#,
             good_example: r#"# Keep v2 on Soroban Protocol >= v1 and verify target network protocol support"#,
+        },
+        RuleDescriptor {
+            id: "ARK-DIFF-006",
+            title: "Breaking Contract Event Schema Change (`#[contractevent]` / `EventV0`)",
+            category: RuleCategory::AbiCompatibility,
+            default_severity: Severity::Warning,
+            description: "Detects removed contract events, changed event prefix topics, or altered event topic/data field types and locations between v1 and v2 that break off-chain Stellar indexers.",
+            remediation: "Preserve existing event topic and data schemas across minor upgrades or emit a new versioned event struct (e.g., DepositEventV2).",
+            bad_example: r#"// v1: #[contractevent] pub struct DepositEvent { #[topic] pub user: Address, pub amount: i128 }
+// v2: moving `user` from topic to data breaks topic filters in off-chain indexers!
+#[contractevent]
+pub struct DepositEvent {
+    pub user: Address,
+    pub amount: i128,
+}"#,
+            good_example: r#"#[contractevent]
+pub struct DepositEvent {
+    #[topic]
+    pub user: Address,
+    pub amount: i128,
+}"#,
+        },
+        RuleDescriptor {
+            id: "ARK-UPG-003",
+            title: "Modified `__constructor` Signature Without `migrate` Entrypoint Across Upgrade",
+            category: RuleCategory::UpgradeAuth,
+            default_severity: Severity::Warning,
+            description: "Detects when v2 adds or modifies `__constructor` parameters relative to v1 without providing a `migrate` entrypoint. In Soroban, `update_current_contract_wasm` replaces bytecode in place and never re-runs `__constructor`.",
+            remediation: "Add an admin-authenticated `migrate(env: Env, ...)` entrypoint to initialize new v2 storage keys after an in-place WASM upgrade.",
+            bad_example: r#"// v1: pub fn __constructor(env: Env, admin: Address)
+// v2 adds `fee_recipient` to __constructor, which will NOT run on live upgraded contracts!
+pub fn __constructor(env: Env, admin: Address, fee_recipient: Address)"#,
+            good_example: r#"pub fn __constructor(env: Env, admin: Address, fee_recipient: Address) { /* ... */ }
+pub fn migrate(env: Env, fee_recipient: Address) { /* initialize v2 state */ }"#,
         },
     ]
 }

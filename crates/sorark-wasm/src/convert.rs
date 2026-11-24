@@ -1,12 +1,14 @@
 //! Conversion from Stellar XDR [`ScSpecEntry`] definitions into [`sorark_ir`] specifications.
 
 use sorark_ir::{
-    ContractModule, EnumSpec, EnumVariantSpec, ErrorEnumSpec, FunctionParamSpec, FunctionSpec,
-    StructFieldSpec, StructSpec, TupleStructSpec, TypeRef, UnionCaseSpec, UnionSpec,
+    ContractModule, EnumSpec, EnumVariantSpec, ErrorEnumSpec, EventParamSpec, EventSpec,
+    FunctionParamSpec, FunctionSpec, StructFieldSpec, StructSpec, TupleStructSpec, TypeRef,
+    UnionCaseSpec, UnionSpec,
 };
 use stellar_xdr::{
-    ScSpecEntry, ScSpecFunctionV0, ScSpecTypeDef, ScSpecUdtEnumV0, ScSpecUdtErrorEnumV0,
-    ScSpecUdtStructV0, ScSpecUdtUnionCaseV0, ScSpecUdtUnionV0,
+    ScSpecEntry, ScSpecEventParamLocationV0, ScSpecEventV0, ScSpecFunctionV0, ScSpecTypeDef,
+    ScSpecUdtEnumV0, ScSpecUdtErrorEnumV0, ScSpecUdtStructV0, ScSpecUdtUnionCaseV0,
+    ScSpecUdtUnionV0,
 };
 
 /// Translates a single decoded [`ScSpecEntry`] and appends it to `module`.
@@ -33,7 +35,35 @@ pub(crate) fn populate_module_from_spec_entry(
                 .error_enums
                 .push(convert_spec_error_enum(path_label, err));
         }
-        ScSpecEntry::EventV0(_) => {}
+        ScSpecEntry::EventV0(ev) => {
+            module.events.push(convert_spec_event(path_label, ev));
+        }
+    }
+}
+
+/// Converts an [`ScSpecEventV0`] entry into a normalized [`EventSpec`].
+fn convert_spec_event(path_label: &str, ev: &ScSpecEventV0) -> EventSpec {
+    let name = ev.name.to_utf8_string_lossy();
+    let prefix_topics = ev
+        .prefix_topics
+        .iter()
+        .map(|sym| sym.to_utf8_string_lossy())
+        .collect();
+    let params = ev
+        .params
+        .iter()
+        .map(|p| EventParamSpec {
+            name: p.name.to_utf8_string_lossy(),
+            ty: xdr_typedef_to_typeref(&p.type_),
+            is_topic: p.location == ScSpecEventParamLocationV0::TopicList,
+        })
+        .collect();
+    EventSpec {
+        name,
+        prefix_topics,
+        params,
+        file: Some(path_label.to_string()),
+        line: None,
     }
 }
 

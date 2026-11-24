@@ -1,8 +1,8 @@
 //! The [`ContractModule`] aggregate: one normalized view of a Soroban contract.
 
 use super::{
-    EnumSpec, ErrorEnumSpec, FunctionSpec, SourceOrigin, StructSpec, TupleStructSpec, TypeRef,
-    UnionSpec, unbounded::UnboundedAnalyzer,
+    EnumSpec, ErrorEnumSpec, EventSpec, FunctionSpec, SourceOrigin, StructSpec, TupleStructSpec,
+    TypeRef, UnionSpec, unbounded::UnboundedAnalyzer,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -21,6 +21,7 @@ pub struct ContractModule {
     pub unions: Vec<UnionSpec>,
     pub error_enums: Vec<ErrorEnumSpec>,
     pub functions: Vec<FunctionSpec>,
+    pub events: Vec<EventSpec>,
 }
 
 impl ContractModule {
@@ -36,6 +37,7 @@ impl ContractModule {
             unions: Vec::new(),
             error_enums: Vec::new(),
             functions: Vec::new(),
+            events: Vec::new(),
         }
     }
 
@@ -73,6 +75,12 @@ impl ContractModule {
     #[must_use]
     pub fn find_function(&self, name: &str) -> Option<&FunctionSpec> {
         self.functions.iter().find(|f| f.name == name)
+    }
+
+    /// Finds an exported contract event specification by name.
+    #[must_use]
+    pub fn find_event(&self, name: &str) -> Option<&EventSpec> {
+        self.events.iter().find(|ev| ev.name == name)
     }
 
     /// Returns `true` if `ty` is unbounded directly or through any `#[contracttype]`

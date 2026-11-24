@@ -80,6 +80,8 @@ pub struct WasmUpgradeCall {
 #[derive(Debug, Clone)]
 pub struct ParsedFunction {
     pub name: String,
+    /// Optional module-qualified identifier (e.g. `"storage::bump_instance"`).
+    pub qualified_name: Option<String>,
     pub is_contract_entrypoint: bool,
     pub is_pub: bool,
     pub file: String,
@@ -180,9 +182,15 @@ impl AstAnalysisContext {
         })
     }
 
-    /// Finds a parsed function by name in the current analysis context.
+    /// Finds a parsed function by unqualified or module-qualified name in the current analysis context.
     #[must_use]
     pub fn find_function(&self, name: &str) -> Option<&ParsedFunction> {
-        self.functions.iter().find(|f| f.name == name)
+        self.functions
+            .iter()
+            .find(|f| f.qualified_name.as_deref() == Some(name))
+            .or_else(|| {
+                let short = name.rsplit("::").next().unwrap_or(name);
+                self.functions.iter().find(|f| f.name == short)
+            })
     }
 }

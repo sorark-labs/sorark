@@ -214,4 +214,91 @@ mod tests {
         let sym_error_count = diags.iter().filter(|d| d.rule_id == "ARK-STOR-007").count();
         assert_eq!(sym_error_count, 2, "Expected 2 ARK-STOR-007 findings");
     }
+
+    #[test]
+    fn resolves_cross_file_module_qualified_calls_and_parses_contractevent() {
+        let tmp = tempfile::tempdir().unwrap();
+        let src_dir = tmp.path().join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+
+        std::fs::write(
+            src_dir.join("lib.rs"),
+            r#"
+            use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, BytesN, Env};
+            mod auth;
+            mod storage;
+
+            #[contracttype]
+            pub enum DataKey {
+                Admin,
+                Balance(Address),
+            }
+
+            #[contractevent]
+            pub struct DepositEvent {
+                #[topic]
+                pub user: Address,
+                pub amount: i128,
+            }
+
+            #[contract]
+            pub struct ModularVault;
+
+            #[contractimpl]
+            impl ModularVault {
+                pub fn deposit(env: Env, user: Address, amount: i128) {
+                    env.storage().persistent().set(&DataKey::Balance(user.clone()), &amount);
+                    storage::extend_balance_ttl(&env, &user);
+                }
+
+                pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+                    crate::auth::require_admin(&env);
+                    env.deployer().update_current_contract_wasm(new_wasm_hash);
+                }
+            }
+            "#,
+        )
+        .unwrap();
+
+        std::fs::write(
+            src_dir.join("storage.rs"),
+            r#"
+            use crate::DataKey;
+            use soroban_sdk::{Address, Env};
+
+            pub fn extend_balance_ttl(env: &Env, user: &Address) {
+                env.storage().persistent().extend_ttl(&DataKey::Balance(user.clone()), 17_280, 518_400);
+            }
+            "#,
+        )
+        .unwrap();
+
+        std::fs::write(
+            src_dir.join("auth.rs"),
+            r#"
+            use crate::DataKey;
+            use soroban_sdk::{Address, Env};
+
+            pub fn require_admin(env: &Env) {
+                let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+                admin.require_auth();
+            }
+            "#,
+        )
+        .unwrap();
+
+        let report = scan_rust_path(tmp.path(), &SorarkConfig::default()).unwrap();
+        assert_eq!(report.files_scanned, 3);
+        assert!(
+            report.diagnostics.is_empty(),
+            "Expected 0 false positives across multi-file module calls, got: {:#?}",
+            report.diagnostics
+        );
+        assert_eq!(report.context.module.events.len(), 1);
+        let ev = &report.context.module.events[0];
+        assert_eq!(ev.name, "DepositEvent");
+        assert_eq!(ev.prefix_topics, vec!["deposit_event".to_string()]);
+        assert!(ev.params[0].is_topic);
+        assert!(!ev.params[1].is_topic);
+    }
 }
