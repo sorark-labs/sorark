@@ -60,3 +60,28 @@ pub(super) fn render_rules_markdown(catalog: &[RuleDescriptor]) -> String {
     }
     out
 }
+
+/// Renders a detailed Markdown explanation card for a single [`RuleDescriptor`].
+#[must_use]
+pub(super) fn render_rule_explain_markdown(rule: &RuleDescriptor) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "## `{}` — {}\n", rule.id, rule.title);
+    let _ = writeln!(
+        out,
+        "- **Category:** `{}`\n- **Default Severity:** `{}`\n",
+        rule.category, rule.default_severity
+    );
+    let _ = writeln!(out, "### Description\n{}\n", rule.description);
+    let _ = writeln!(out, "### Remediation\n{}\n", rule.remediation);
+    let _ = writeln!(
+        out,
+        "### Vulnerable Example\n```rust\n{}\n```\n",
+        rule.bad_example
+    );
+    let _ = writeln!(
+        out,
+        "### Remediated Example\n```rust\n{}\n```",
+        rule.good_example
+    );
+    out
+}

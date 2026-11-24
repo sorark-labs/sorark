@@ -52,3 +52,27 @@ pub(super) fn render_rules_text(catalog: &[RuleDescriptor]) -> String {
     }
     out
 }
+
+/// Renders a detailed explanation of a single [`RuleDescriptor`] including vulnerable and fixed code snippets.
+#[must_use]
+pub(super) fn render_rule_explain_text(rule: &RuleDescriptor) -> String {
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "{} — {}\nCategory:         {}\nDefault Severity: {}\n",
+        rule.id, rule.title, rule.category, rule.default_severity
+    );
+    let _ = writeln!(out, "Description:\n  {}\n", rule.description);
+    let _ = writeln!(out, "Remediation:\n  {}\n", rule.remediation);
+    let _ = writeln!(
+        out,
+        "Vulnerable Example:\n----------------------------------------\n{}\n----------------------------------------\n",
+        rule.bad_example
+    );
+    let _ = writeln!(
+        out,
+        "Remediated Example:\n----------------------------------------\n{}\n----------------------------------------",
+        rule.good_example
+    );
+    out
+}

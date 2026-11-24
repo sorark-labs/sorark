@@ -153,3 +153,52 @@ fn cli_sarif_and_wasm_binary_diff_work_end_to_end() {
         "ARK-DIFF-001"
     );
 }
+
+#[test]
+fn cli_supports_min_severity_filter_github_format_and_rule_explain() {
+    let example_dir = workspace_root().join("examples/vulnerable-vault");
+
+    // 1. `--min-severity error` filters out warning ARK-STOR-002
+    let min_sev_out = Command::new(sorark_bin())
+        .args([
+            "lint",
+            example_dir.to_str().unwrap(),
+            "--min-severity",
+            "error",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(min_sev_out.status.code(), Some(1));
+    let min_sev_stdout = String::from_utf8_lossy(&min_sev_out.stdout);
+    assert!(min_sev_stdout.contains("ARK-STOR-001"));
+    assert!(
+        !min_sev_stdout.contains("ARK-STOR-002"),
+        "Expected warning ARK-STOR-002 to be filtered out: {min_sev_stdout}"
+    );
+
+    // 2. `--format github` emits GitHub Actions workflow commands
+    let gh_out = Command::new(sorark_bin())
+        .args(["lint", example_dir.to_str().unwrap(), "--format", "github"])
+        .output()
+        .unwrap();
+    let gh_stdout = String::from_utf8_lossy(&gh_out.stdout);
+    assert!(
+        gh_stdout.contains("::error file="),
+        "Expected ::error workflow command, got: {gh_stdout}"
+    );
+    assert!(
+        gh_stdout.contains("ARK-STOR-001"),
+        "Expected ARK-STOR-001 in github output, got: {gh_stdout}"
+    );
+
+    // 3. `sorark rules --explain ARK-STOR-005` prints vulnerable and remediated examples
+    let explain_out = Command::new(sorark_bin())
+        .args(["rules", "--explain", "ARK-STOR-005"])
+        .output()
+        .unwrap();
+    assert_eq!(explain_out.status.code(), Some(0));
+    let explain_stdout = String::from_utf8_lossy(&explain_out.stdout);
+    assert!(explain_stdout.contains("ARK-STOR-005"));
+    assert!(explain_stdout.contains("Vulnerable Example:"));
+    assert!(explain_stdout.contains("Remediated Example:"));
+}

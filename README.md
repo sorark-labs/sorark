@@ -1,13 +1,12 @@
 # SORARK (`sorark`)
 
 [![CI](https://github.com/sorark-labs/sorark/actions/workflows/ci.yml/badge.svg)](https://github.com/sorark-labs/sorark/actions/workflows/ci.yml)
-[![Release v0.1.0](https://img.shields.io/github/v/release/sorark-labs/sorark?label=Release&color=brightgreen)](https://github.com/sorark-labs/sorark/releases/tag/v0.1.0)
+[![Release v0.2.0](https://img.shields.io/github/v/release/sorark-labs/sorark?label=Release&color=brightgreen)](https://github.com/sorark-labs/sorark/releases/tag/v0.2.0)
 [![Rust 1.87+ (2024 Edition)](https://img.shields.io/badge/Rust-1.87%2B_(2024_Edition)-orange.svg)](https://www.rust-lang.org/)
 [![Stellar Soroban SEP-0048](https://img.shields.io/badge/Stellar-Soroban_SEP--0048_XDR-blue.svg)](https://developers.stellar.org/)
-[![Drips Stellar Wave](https://img.shields.io/badge/Drips_Wave-Stellar_Ecosystem-7047EB.svg)](https://www.drips.network/wave/stellar)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-green.svg)](./LICENSE)
 
-**SORARK** (`sorark`) is a production-grade, pure-Rust static analysis, **State Archival** verification, and **in-place WASM upgrade compatibility** engine built specifically for **Stellar Soroban** smart contracts.
+**SORARK** (`sorark`) is a static analysis, **State Archival** verification, and **in-place WASM upgrade compatibility** engine built specifically for **Stellar Soroban** smart contracts.
 
 Unlike generic Rust syntax linters, **SORARK** models Soroban's exact **Three-Tier State Archival mechanics** (`Instance`, `Persistent`, `Temporary`), **64 KiB ledger entry limits**, and **`stellar-xdr` v30 (`ScVal` / `ScMap` / `ScVec` / `ScSpecEntry`) binary serialization rules** across both Rust source code (`syn` v3 AST) and compiled WebAssembly (`.wasm`) binaries.
 
@@ -23,7 +22,7 @@ Unlike generic Rust syntax linters, **SORARK** models Soroban's exact **Three-Ti
 - [Built-In Rule Matrix (`sorark rules`)](#built-in-rule-matrix-sorark-rules)
 - [Configuration (`sorark.toml`) & Inline Suppressions](#configuration-sorarktoml--inline-suppressions)
 - [Bundled `#![no_std]` Soroban Example Contracts](#bundled-no_std-soroban-example-contracts)
-- [Contributing & Drips Stellar Wave](#contributing--drips-stellar-wave)
+- [Documentation, Roadmap & Contributing](#documentation-roadmap--contributing)
 
 ---
 
@@ -214,10 +213,10 @@ Global Options:
 
 | Subcommand | Usage | Description |
 | :--- | :--- | :--- |
-| **`lint`** | `sorark lint [PATH] [--format <FMT>] [--rule <ID>]` | Analyzes a Soroban Rust directory, `.rs` file, or compiled `.wasm` binary for storage-tier, TTL, and upgrade-auth hazards. |
-| **`diff`** | `sorark diff --old <V1> --new <V2> [--format <FMT>]` | Compares `v1` and `v2` contracts (Rust source or `.wasm` binaries in any combination) for `ScVal` storage layout corruption and ABI breakages. |
+| **`lint`** | `sorark lint [PATH] [--format <FMT>] [--rule <ID>] [--min-severity <SEV>]` | Analyzes a Soroban Rust directory, `.rs` file, or compiled `.wasm` binary for storage-tier, TTL, resource-budget, and upgrade-auth hazards. |
+| **`diff`** | `sorark diff --old <V1> --new <V2> [--format <FMT>] [--min-severity <SEV>]` | Compares `v1` and `v2` contracts (Rust source or `.wasm` binaries in any combination) for `ScVal` storage layout corruption and ABI breakages. |
 | **`inspect`** | `sorark inspect <WASM> [--format <FMT>]` | Decodes a `.wasm` binary's SEP-0048 `contractspecv0`, `contractenvmetav0`, and `contractmetav0` XDR sections and checks the 64 KiB ledger byte budget. |
-| **`rules`** | `sorark rules [--format <FMT>]` | Lists all 12 built-in analysis rules, categories, default severities, and remediations. |
+| **`rules`** | `sorark rules [--explain <RULE_ID>] [--format <FMT>]` | Lists all 15 built-in analysis rules, categories, default severities, and remediations, or explains a specific rule with vulnerable vs. fixed code examples. |
 | **`init`** | `sorark init [--output <PATH>] [--force]` | Generates a documented `sorark.toml` configuration file in the project root. |
 
 ### Deterministic CI Exit Codes
@@ -235,6 +234,9 @@ Global Options:
 | **`ARK-STOR-002`** | `state-archival` | **Warning** | `sorark-ast` | Entrypoint mutates `persistent()` or `instance()` storage without calling `extend_ttl` directly or via a local helper function. |
 | **`ARK-STOR-003`** | `storage-safety` | **Error** | `sorark-ast` | Security-critical state key (`Admin`, `Owner`, `Balance`, `Allowance`, `Nonce`, `Paused`, `Role`) written to ephemeral `temporary()` storage. |
 | **`ARK-STOR-004`** | `state-archival` | **Error** | `sorark-ast` | Invalid `extend_ttl(threshold, extend_to)` bounds (`threshold > extend_to` host trap, `extend_to == 0`, or `> 3,110,400` Mainnet `max_entry_ttl`). |
+| **`ARK-STOR-005`** | `resource-budget` | **Warning** | `sorark-ast` | Redundant ledger lookup: `env.storage().<tier>().has(&k)` immediately followed by `.get(&k)` on the identical key. |
+| **`ARK-STOR-006`** | `resource-budget` | **Warning** | `sorark-ast` | Storage read, write, or TTL extension inside a `for`, `while`, or `loop` body (ledger footprint exhaustion hazard). |
+| **`ARK-STOR-007`** | `storage-safety` | **Error** | `sorark-ast` | Invalid Soroban `Symbol` literal length (`symbol_short!` > 9 chars or `Symbol::new` > 32 chars) or characters outside `[a-zA-Z0-9_]`. |
 | **`ARK-UPG-001`** | `upgrade-auth` | **Error** | `sorark-ast` | `env.deployer().update_current_contract_wasm(...)` invoked without a dominating `require_auth()` check. |
 | **`ARK-UPG-002`** | `upgrade-auth` | **Info** | `sorark-ast` | Stateful contract defines administrative storage mutations but exposes no `update_current_contract_wasm` upgrade handler. |
 | **`ARK-WASM-001`** | `resource-budget` | **Warning / Error** | `sorark-wasm` | Compiled `.wasm` binary exceeds ledger byte budget (48 KiB warning / 64 KiB error) or lacks SEP-0048 `contractspecv0` / `contractenvmetav0` sections. |
@@ -292,11 +294,11 @@ env.storage().persistent().set(&DataKey::Order(id), &order);
 
 ---
 
-## Contributing & Drips Stellar Wave
+## Documentation, Roadmap & Contributing
 
-We actively participate in the **[Drips Stellar Wave Program](https://www.drips.network/wave/stellar)**!
-* Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, Rust 2024 coding standards, and step-by-step instructions on adding a new `AstRule` or `DiffRule` in its own isolated module.
-* Browse [`DRIPS_WAVE.md`](./DRIPS_WAVE.md) for our curated backlog of **18 pre-scoped Wave tasks** across **100-point (Trivial)**, **150-point (Medium)**, and **200-point (High)** tiers.
+* **Internal Architecture:** Read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for a deep dive into the two-pass AST engine, SEP-0048 XDR decoder, and `ContractModule` intermediate representation.
+* **Roadmap:** Browse [`ROADMAP.md`](./ROADMAP.md) for upcoming milestones (`v0.2.0` – `v0.4.0`).
+* **Contributing:** Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, Rust 2024 coding standards, and step-by-step instructions on adding a new `AstRule` or `DiffRule` in its own isolated module.
 
 ## License
 

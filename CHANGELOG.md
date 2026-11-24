@@ -5,6 +5,18 @@ All notable changes to **SORARK** (`sorark`) will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-11-24
+
+### Added
+- **`ARK-STOR-005` (`sorark-ast`):** New rule detecting redundant `env.storage().<tier>().has(&k)` followed by `.get(&k)` on the same key within a function body.
+- **`ARK-STOR-006` (`sorark-ast`):** New rule detecting Soroban storage reads, writes, or TTL extensions inside `for`, `while`, and `loop` bodies that risk exhausting per-transaction ledger footprint limits.
+- **`ARK-STOR-007` (`sorark-ast`):** New rule validating `symbol_short!("...")` (<= 9 chars) and `Symbol::new(&env, "...")` (<= 32 chars) literals against Soroban's `[a-zA-Z0-9_]` symbol alphabet.
+- **Per-Rule Severity & Enablement Overrides (`sorark-ir`):** Support `[rules.<RULE_ID>] severity = "error" | "warning" | "info"` and `enabled = true | false` in `sorark.toml` across all engines (`sorark-ast`, `sorark-wasm`, `sorark-diff`).
+- **Rule Explanation Mode (`sorark rules --explain <RULE_ID>`):** Print detailed vulnerability descriptions, remediations, and vulnerable vs. fixed Soroban Rust examples in text, Markdown, or JSON format.
+- **Minimum Severity Filter (`--min-severity <info|warning|error>`):** Added `--min-severity` filtering to `sorark lint` and `sorark diff`.
+- **GitHub Actions Annotation Output (`--format github`):** Emit native `::error`, `::warning`, and `::notice` workflow commands for inline Pull Request annotations.
+- **Architecture & Roadmap Docs:** Added `docs/ARCHITECTURE.md`, `ROADMAP.md`, and crates.io packaging metadata across all workspace crates.
+
 ## [0.1.0] - 2026-11-02
 
 ### Added

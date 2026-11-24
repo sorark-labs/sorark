@@ -2,6 +2,7 @@
 
 use crate::format::OutputFormat;
 use clap::{Parser, Subcommand};
+use sorark_ir::Severity;
 use std::path::PathBuf;
 
 /// Top-level CLI parser for `sorark`.
@@ -10,7 +11,7 @@ use std::path::PathBuf;
     name = "sorark",
     version,
     about = "SORARK: State Archival, Storage-Tier Safety, and Upgrade-Compatibility Analyzer for Stellar Soroban",
-    long_about = "Analyzes Stellar Soroban smart contracts (Rust source and compiled .wasm binaries) for 64 KiB instance storage bombs, missing extend_ttl archival hazards, temporary storage exploits, and state-corrupting v1-to-v2 upgrade mutations."
+    long_about = "Analyzes Stellar Soroban smart contracts (Rust source and compiled .wasm binaries) for 64 KiB instance storage bombs, missing extend_ttl archival hazards, temporary storage exploits, redundant/loop storage accesses, and state-corrupting v1-to-v2 upgrade mutations."
 )]
 pub struct Cli {
     /// Path to an optional `sorark.toml` configuration file.
@@ -35,13 +36,17 @@ pub enum Commands {
         #[arg(default_value = ".")]
         path: PathBuf,
 
-        /// Output format (`text`, `json`, `sarif`, `markdown`).
+        /// Output format (`text`, `json`, `sarif`, `markdown`, `github`).
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
 
         /// Filter output to only a specific rule ID (e.g. `ARK-STOR-001`).
         #[arg(long)]
         rule: Option<String>,
+
+        /// Filter output to diagnostics at or above this severity (`info`, `warning`, `error`).
+        #[arg(long)]
+        min_severity: Option<Severity>,
     },
 
     /// Check storage-layout (`ScMap`/`ScVec`) and ABI upgrade safety between two contract versions (`v1` vs `v2`).
@@ -54,9 +59,13 @@ pub enum Commands {
         #[arg(long)]
         new: PathBuf,
 
-        /// Output format (`text`, `json`, `sarif`, `markdown`).
+        /// Output format (`text`, `json`, `sarif`, `markdown`, `github`).
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Filter output to diagnostics at or above this severity (`info`, `warning`, `error`).
+        #[arg(long)]
+        min_severity: Option<Severity>,
     },
 
     /// Inspect a compiled Soroban `.wasm` binary's SEP-0048 XDR specification and ledger byte budget.
@@ -69,11 +78,15 @@ pub enum Commands {
         format: OutputFormat,
     },
 
-    /// List all built-in SORARK analysis rules, severities, and remediations.
+    /// List all built-in SORARK analysis rules, severities, and remediations (or explain a single rule).
     Rules {
         /// Output format (`text`, `json`, `markdown`).
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Print a detailed explanation and vulnerable vs. remediated code examples for a rule ID (e.g. `ARK-STOR-001`).
+        #[arg(long)]
+        explain: Option<String>,
     },
 
     /// Create a documented `sorark.toml` configuration file in the target directory.

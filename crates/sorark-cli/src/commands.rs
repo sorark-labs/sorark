@@ -2,12 +2,15 @@
 
 use crate::cli::{Cli, Commands};
 use crate::format::{
-    OutputFormat, render_diagnostics, render_rule_catalog, render_wasm_inspection,
+    OutputFormat, render_diagnostics, render_rule_catalog, render_rule_explanation,
+    render_wasm_inspection,
 };
 use anyhow::{Context, Result, bail};
 use sorark_ast::scan_rust_path;
 use sorark_diff::compare_contract_modules;
-use sorark_ir::{ContractModule, Diagnostic, Severity, SorarkConfig, builtin_rule_catalog};
+use sorark_ir::{
+    ContractModule, Diagnostic, Severity, SorarkConfig, builtin_rule_catalog, find_rule_descriptor,
+};
 use sorark_wasm::inspect_wasm_file;
 use std::path::Path;
 use std::process::ExitCode;
@@ -20,10 +23,20 @@ pub fn execute(cli: Cli) -> Result<ExitCode> {
     }
 
     match cli.command {
-        Commands::Lint { path, format, rule } => run_lint(&path, format, rule.as_deref(), &config),
-        Commands::Diff { old, new, format } => run_diff(&old, &new, format, &config),
+        Commands::Lint {
+            path,
+            format,
+            rule,
+            min_severity,
+        } => run_lint(&path, format, rule.as_deref(), min_severity, &config),
+        Commands::Diff {
+            old,
+            new,
+            format,
+            min_severity,
+        } => run_diff(&old, &new, format, min_severity, &config),
         Commands::Inspect { wasm, format } => run_inspect(&wasm, format, &config),
-        Commands::Rules { format } => run_rules(format),
+        Commands::Rules { format, explain } => run_rules(format, explain.as_deref()),
         Commands::Init { output, force } => run_init(&output, force),
     }
 }
@@ -33,6 +46,7 @@ fn run_lint(
     path: &Path,
     format: OutputFormat,
     rule_filter: Option<&str>,
+    min_severity: Option<Severity>,
     config: &SorarkConfig,
 ) -> Result<ExitCode> {
     let mut diagnostics = if is_wasm_path(path) {
@@ -43,6 +57,9 @@ fn run_lint(
 
     if let Some(filter) = rule_filter {
         diagnostics.retain(|d| d.rule_id.eq_ignore_ascii_case(filter));
+    }
+    if let Some(min_sev) = min_severity {
+        diagnostics.retain(|d| d.severity >= min_sev);
     }
 
     let rendered = render_diagnostics(&diagnostics, format)?;
@@ -58,6 +75,7 @@ fn run_diff(
     old: &Path,
     new: &Path,
     format: OutputFormat,
+    min_severity: Option<Severity>,
     config: &SorarkConfig,
 ) -> Result<ExitCode> {
     let old_module = load_contract_module(old, config).with_context(|| {
@@ -73,7 +91,11 @@ fn run_diff(
         )
     })?;
 
-    let diff_report = compare_contract_modules(&old_module, &new_module, config);
+    let mut diff_report = compare_contract_modules(&old_module, &new_module, config);
+    if let Some(min_sev) = min_severity {
+        diff_report.diagnostics.retain(|d| d.severity >= min_sev);
+    }
+
     let rendered = render_diagnostics(&diff_report.diagnostics, format)?;
     print!("{rendered}");
     Ok(exit_code_for_diagnostics(
@@ -93,8 +115,19 @@ fn run_inspect(wasm: &Path, format: OutputFormat, config: &SorarkConfig) -> Resu
     ))
 }
 
-/// Executes `sorark rules` to print the built-in SORARK rule catalog.
-fn run_rules(format: OutputFormat) -> Result<ExitCode> {
+/// Executes `sorark rules` to print the built-in SORARK rule catalog or explain a single rule.
+fn run_rules(format: OutputFormat, explain_rule_id: Option<&str>) -> Result<ExitCode> {
+    if let Some(rule_id) = explain_rule_id {
+        let Some(rule) = find_rule_descriptor(rule_id) else {
+            bail!(
+                "Unknown SORARK rule ID `{rule_id}`. Run `sorark rules` to see all available rule IDs."
+            );
+        };
+        let rendered = render_rule_explanation(&rule, format)?;
+        print!("{rendered}");
+        return Ok(ExitCode::SUCCESS);
+    }
+
     let catalog = builtin_rule_catalog();
     let rendered = render_rule_catalog(&catalog, format)?;
     print!("{rendered}");

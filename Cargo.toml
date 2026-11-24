@@ -14,7 +14,7 @@ exclude = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.87"
 license = "MIT OR Apache-2.0"
@@ -29,10 +29,10 @@ categories = [
 ]
 
 [workspace.dependencies]
-sorark-ir = { path = "crates/sorark-ir", version = "0.1.0" }
-sorark-ast = { path = "crates/sorark-ast", version = "0.1.0" }
-sorark-wasm = { path = "crates/sorark-wasm", version = "0.1.0" }
-sorark-diff = { path = "crates/sorark-diff", version = "0.1.0" }
+sorark-ir = { path = "crates/sorark-ir", version = "0.2.0" }
+sorark-ast = { path = "crates/sorark-ast", version = "0.2.0" }
+sorark-wasm = { path = "crates/sorark-wasm", version = "0.2.0" }
+sorark-diff = { path = "crates/sorark-diff", version = "0.2.0" }
 
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive", "env"] }
