@@ -49,6 +49,19 @@ pub struct StorageOp {
     pub inferred_value_type: Option<TypeRef>,
     /// For `extend_ttl`, stores `(threshold, extend_to)` if resolvable to integer literals/constants.
     pub ttl_bounds: Option<(Option<u64>, Option<u64>)>,
+    /// `true` if this storage operation occurs inside a `for`, `while`, or `loop` body.
+    pub in_loop: bool,
+    pub line: usize,
+    pub column: usize,
+    pub snippet: String,
+}
+
+/// Recorded `symbol_short!("...")` or `Symbol::new(&env, "...")` string literal invocation.
+#[derive(Debug, Clone)]
+pub struct SymbolLiteralCall {
+    /// `true` for `symbol_short!(...)` (max 9 chars), `false` for `Symbol::new(...)` (max 32 chars).
+    pub is_short: bool,
+    pub value: String,
     pub line: usize,
     pub column: usize,
     pub snippet: String,
@@ -73,6 +86,7 @@ pub struct ParsedFunction {
     pub line: usize,
     pub column: usize,
     pub storage_ops: Vec<StorageOp>,
+    pub symbol_literals: Vec<SymbolLiteralCall>,
     pub has_direct_require_auth: bool,
     pub wasm_upgrade_calls: Vec<WasmUpgradeCall>,
     pub called_functions: Vec<String>,

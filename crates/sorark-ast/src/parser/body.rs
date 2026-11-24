@@ -1,22 +1,31 @@
 //! AST visitor that inspects a single function body for storage calls, TTL extensions,
-//! `require_auth` guards, and `update_current_contract_wasm` invocations.
+//! `require_auth` guards, `update_current_contract_wasm` invocations, loop nesting,
+//! and Soroban `Symbol` string literals.
 
 use super::const_eval::{eval_u64_expr, expr_to_compact_string, pat_to_ident_string};
-use super::context::{ParsedFunction, StorageOp, StorageOpKind, WasmUpgradeCall};
+use super::context::{
+    ParsedFunction, StorageOp, StorageOpKind, SymbolLiteralCall, WasmUpgradeCall,
+};
 use super::types::syn_type_to_typeref;
 use proc_macro2::Span;
 use sorark_ir::{StorageTier, TypeRef};
 use std::collections::HashMap;
+use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprCall, ExprMethodCall, ExprPath, FnArg, Local, Pat, Stmt};
+use syn::{
+    Expr, ExprCall, ExprForLoop, ExprLit, ExprLoop, ExprMacro, ExprMethodCall, ExprPath, ExprWhile,
+    FnArg, Lit, Local, Pat, Stmt,
+};
 
 /// Intra-function AST visitor that tracks local variable types, storage operations,
-/// authorization checks, and helper calls.
+/// loop depth, symbol literals, authorization checks, and helper calls.
 pub(super) struct FnBodyAnalyzer<'a> {
     source_lines: &'a [&'a str],
     constants: &'a HashMap<String, u64>,
     local_var_types: HashMap<String, TypeRef>,
     storage_ops: Vec<StorageOp>,
+    symbol_literals: Vec<SymbolLiteralCall>,
+    loop_depth: usize,
     has_require_auth: bool,
     wasm_upgrade_calls: Vec<WasmUpgradeCall>,
     called_functions: Vec<String>,
@@ -30,6 +39,8 @@ impl<'a> FnBodyAnalyzer<'a> {
             constants,
             local_var_types: HashMap::new(),
             storage_ops: Vec::new(),
+            symbol_literals: Vec::new(),
+            loop_depth: 0,
             has_require_auth: false,
             wasm_upgrade_calls: Vec::new(),
             called_functions: Vec::new(),
@@ -69,6 +80,7 @@ impl<'a> FnBodyAnalyzer<'a> {
             line,
             column,
             storage_ops: self.storage_ops,
+            symbol_literals: self.symbol_literals,
             has_direct_require_auth: self.has_require_auth,
             wasm_upgrade_calls: self.wasm_upgrade_calls,
             called_functions: self.called_functions,
@@ -155,6 +167,7 @@ impl<'a> FnBodyAnalyzer<'a> {
             value_expr,
             inferred_value_type,
             ttl_bounds,
+            in_loop: self.loop_depth > 0,
             line,
             column,
             snippet,
@@ -162,9 +175,6 @@ impl<'a> FnBodyAnalyzer<'a> {
     }
 
     /// Evaluates `(threshold, extend_to)` arguments on an `extend_ttl` invocation.
-    ///
-    /// Note that `instance().extend_ttl(threshold, extend_to)` takes 2 arguments, whereas
-    /// `persistent().extend_ttl(&key, threshold, extend_to)` takes 3 arguments.
     fn extract_ttl_bounds(
         &self,
         node: &ExprMethodCall,
@@ -184,6 +194,51 @@ impl<'a> FnBodyAnalyzer<'a> {
             .and_then(|e| eval_u64_expr(e, self.constants));
         (threshold, extend_to)
     }
+
+    /// Records `symbol_short!("...")` macro calls for static length/charset validation (`ARK-STOR-007`).
+    fn check_symbol_short_macro(&mut self, node: &ExprMacro) {
+        let Some(last) = node.mac.path.segments.last() else {
+            return;
+        };
+        if last.ident != "symbol_short" {
+            return;
+        }
+        if let Ok(Lit::Str(lit_str)) = syn::parse2::<Lit>(node.mac.tokens.clone()) {
+            let (line, column, snippet) = self.line_snippet(last.ident.span());
+            self.symbol_literals.push(SymbolLiteralCall {
+                is_short: true,
+                value: lit_str.value(),
+                line,
+                column,
+                snippet,
+            });
+        }
+    }
+
+    /// Records `Symbol::new(&env, "...")` function calls for static length/charset validation (`ARK-STOR-007`).
+    fn check_symbol_new_call(&mut self, node: &ExprCall) {
+        let Expr::Path(ExprPath { path, .. }) = &*node.func else {
+            return;
+        };
+        let segs: Vec<String> = path.segments.iter().map(|s| s.ident.to_string()).collect();
+        if segs.len() >= 2
+            && segs[segs.len() - 2] == "Symbol"
+            && segs[segs.len() - 1] == "new"
+            && let Some(Expr::Lit(ExprLit {
+                lit: Lit::Str(lit_str),
+                ..
+            })) = node.args.get(1)
+        {
+            let (line, column, snippet) = self.line_snippet(path.span());
+            self.symbol_literals.push(SymbolLiteralCall {
+                is_short: false,
+                value: lit_str.value(),
+                line,
+                column,
+                snippet,
+            });
+        }
+    }
 }
 
 impl<'ast> Visit<'ast> for FnBodyAnalyzer<'_> {
@@ -192,6 +247,30 @@ impl<'ast> Visit<'ast> for FnBodyAnalyzer<'_> {
             self.record_local_binding(local);
         }
         visit::visit_stmt(self, stmt);
+    }
+
+    fn visit_expr_for_loop(&mut self, node: &'ast ExprForLoop) {
+        visit::visit_expr(self, &node.expr);
+        self.loop_depth += 1;
+        visit::visit_block(self, &node.body);
+        self.loop_depth -= 1;
+    }
+
+    fn visit_expr_while(&mut self, node: &'ast ExprWhile) {
+        self.loop_depth += 1;
+        visit::visit_expr_while(self, node);
+        self.loop_depth -= 1;
+    }
+
+    fn visit_expr_loop(&mut self, node: &'ast ExprLoop) {
+        self.loop_depth += 1;
+        visit::visit_expr_loop(self, node);
+        self.loop_depth -= 1;
+    }
+
+    fn visit_expr_macro(&mut self, node: &'ast ExprMacro) {
+        self.check_symbol_short_macro(node);
+        visit::visit_expr_macro(self, node);
     }
 
     fn visit_expr_method_call(&mut self, node: &'ast ExprMethodCall) {
@@ -227,6 +306,7 @@ impl<'ast> Visit<'ast> for FnBodyAnalyzer<'_> {
 
     fn visit_expr_call(&mut self, node: &'ast ExprCall) {
         visit::visit_expr_call(self, node);
+        self.check_symbol_new_call(node);
         if let Expr::Path(ExprPath { path, .. }) = &*node.func
             && let Some(last) = path.segments.last()
         {

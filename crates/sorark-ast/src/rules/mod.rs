@@ -5,19 +5,28 @@
 //! - [`MissingExtendTtlRule`] (`ARK-STOR-002`)
 //! - [`CriticalStateInTempStorageRule`] (`ARK-STOR-003`)
 //! - [`InvalidTtlBoundsRule`] (`ARK-STOR-004`)
+//! - [`RedundantHasBeforeGetRule`] (`ARK-STOR-005`)
+//! - [`LoopStorageAccessRule`] (`ARK-STOR-006`)
+//! - [`InvalidSymbolLiteralRule`] (`ARK-STOR-007`)
 //! - [`UnprotectedWasmUpgradeRule`] (`ARK-UPG-001`)
 //! - [`MissingUpgradeMechanismRule`] (`ARK-UPG-002`)
 
 mod invalid_ttl_bounds;
+mod loop_storage;
 mod missing_ttl;
 mod missing_upgrade;
+mod redundant_has;
+mod symbol_length;
 mod temp_critical_state;
 mod unbounded_instance;
 mod unprotected_upgrade;
 
 pub use invalid_ttl_bounds::InvalidTtlBoundsRule;
+pub use loop_storage::LoopStorageAccessRule;
 pub use missing_ttl::MissingExtendTtlRule;
 pub use missing_upgrade::MissingUpgradeMechanismRule;
+pub use redundant_has::RedundantHasBeforeGetRule;
+pub use symbol_length::InvalidSymbolLiteralRule;
 pub use temp_critical_state::CriticalStateInTempStorageRule;
 pub use unbounded_instance::UnboundedInstanceStorageRule;
 pub use unprotected_upgrade::UnprotectedWasmUpgradeRule;
@@ -50,6 +59,9 @@ pub fn default_ast_rules() -> Vec<Box<dyn AstRule>> {
         Box::new(MissingExtendTtlRule),
         Box::new(CriticalStateInTempStorageRule),
         Box::new(InvalidTtlBoundsRule),
+        Box::new(RedundantHasBeforeGetRule),
+        Box::new(LoopStorageAccessRule),
+        Box::new(InvalidSymbolLiteralRule),
         Box::new(UnprotectedWasmUpgradeRule),
         Box::new(MissingUpgradeMechanismRule),
     ]

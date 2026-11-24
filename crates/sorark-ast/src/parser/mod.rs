@@ -15,7 +15,10 @@ mod items;
 mod suppression;
 mod types;
 
-pub use context::{AstAnalysisContext, ParsedFunction, StorageOp, StorageOpKind, WasmUpgradeCall};
+pub use context::{
+    AstAnalysisContext, ParsedFunction, StorageOp, StorageOpKind, SymbolLiteralCall,
+    WasmUpgradeCall,
+};
 pub use suppression::parse_inline_suppressions;
 pub use types::syn_type_to_typeref;
 

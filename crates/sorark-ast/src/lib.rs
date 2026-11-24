@@ -13,13 +13,14 @@ pub mod scanner;
 
 pub use error::AstEngineError;
 pub use parser::{
-    AstAnalysisContext, ParsedFunction, StorageOp, StorageOpKind, WasmUpgradeCall,
-    parse_inline_suppressions, parse_rust_source_into_context, parse_single_source,
-    syn_type_to_typeref,
+    AstAnalysisContext, ParsedFunction, StorageOp, StorageOpKind, SymbolLiteralCall,
+    WasmUpgradeCall, parse_inline_suppressions, parse_rust_source_into_context,
+    parse_single_source, syn_type_to_typeref,
 };
 pub use rules::{
-    AstRule, CriticalStateInTempStorageRule, InvalidTtlBoundsRule, MissingExtendTtlRule,
-    MissingUpgradeMechanismRule, UnboundedInstanceStorageRule, UnprotectedWasmUpgradeRule,
+    AstRule, CriticalStateInTempStorageRule, InvalidSymbolLiteralRule, InvalidTtlBoundsRule,
+    LoopStorageAccessRule, MissingExtendTtlRule, MissingUpgradeMechanismRule,
+    RedundantHasBeforeGetRule, UnboundedInstanceStorageRule, UnprotectedWasmUpgradeRule,
     default_ast_rules,
 };
 pub use scanner::{AstScanReport, run_rules_on_context, scan_rust_path};
@@ -166,5 +167,51 @@ mod tests {
         let ctx = parse_single_source("ignored", "src/lib.rs", src).unwrap();
         let diags = run_rules_on_context(&ctx, &SorarkConfig::default());
         assert!(!diags.iter().any(|d| d.rule_id == "ARK-UPG-001"));
+    }
+
+    #[test]
+    fn detects_redundant_has_loop_storage_and_invalid_symbol_literals() {
+        let src = r#"
+            use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, Env, Symbol, Vec};
+
+            #[contracttype]
+            pub enum DataKey {
+                Balance(Address),
+            }
+
+            #[contract]
+            pub struct TokenOps;
+
+            #[contractimpl]
+            impl TokenOps {
+                pub fn batch_airdrop(env: Env, users: Vec<Address>, amount: i128) {
+                    let bad_short = symbol_short!("TOO_LONG_SHORT_SYMBOL");
+                    let bad_chars = Symbol::new(&env, "invalid-hyphen-symbol");
+                    let _ = (bad_short, bad_chars);
+
+                    for user in users.iter() {
+                        let key = DataKey::Balance(user);
+                        if env.storage().persistent().has(&key) {
+                            let prev: i128 = env.storage().persistent().get(&key).unwrap();
+                            env.storage().persistent().set(&key, &(prev + amount));
+                        }
+                    }
+                }
+            }
+        "#;
+
+        let ctx = parse_single_source("token_ops", "src/lib.rs", src).unwrap();
+        let diags = run_rules_on_context(&ctx, &SorarkConfig::default());
+
+        assert!(
+            diags.iter().any(|d| d.rule_id == "ARK-STOR-005"),
+            "Expected ARK-STOR-005, got: {diags:#?}"
+        );
+        assert!(
+            diags.iter().any(|d| d.rule_id == "ARK-STOR-006"),
+            "Expected ARK-STOR-006, got: {diags:#?}"
+        );
+        let sym_error_count = diags.iter().filter(|d| d.rule_id == "ARK-STOR-007").count();
+        assert_eq!(sym_error_count, 2, "Expected 2 ARK-STOR-007 findings");
     }
 }

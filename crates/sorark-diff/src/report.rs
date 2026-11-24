@@ -31,6 +31,7 @@ pub fn compare_contract_modules(
             diagnostics.extend(rule.check_diff(old, new, config));
         }
     }
+    config.apply_severity_overrides(&mut diagnostics);
 
     let is_upgrade_safe = !diagnostics.iter().any(|d| {
         d.severity == Severity::Error

@@ -18,6 +18,7 @@ pub(crate) fn evaluate_wasm_diagnostics(
     let mut out = Vec::new();
     check_wasm_byte_size(path_label, metrics, config, &mut out);
     check_required_custom_sections(path_label, metrics, &mut out);
+    config.apply_severity_overrides(&mut out);
     out
 }
 

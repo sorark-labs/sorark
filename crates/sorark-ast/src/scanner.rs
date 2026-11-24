@@ -58,6 +58,7 @@ pub fn run_rules_on_context(ctx: &AstAnalysisContext, config: &SorarkConfig) -> 
             diagnostics.extend(rule.check(ctx, config));
         }
     }
+    config.apply_severity_overrides(&mut diagnostics);
     diagnostics
 }
 

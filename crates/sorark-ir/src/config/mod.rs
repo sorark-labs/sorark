@@ -7,8 +7,9 @@ pub use limits::{
     MAINNET_MIN_PERSISTENT_ENTRY_TTL, MAINNET_MIN_TEMP_ENTRY_TTL,
 };
 
+use crate::diagnostic::{Diagnostic, Severity};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use thiserror::Error;
 
@@ -27,6 +28,16 @@ pub enum ConfigError {
         #[source]
         source: toml::de::Error,
     },
+}
+
+/// Per-rule configuration override under `[rules.<RULE_ID>]` in `sorark.toml`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RuleOverride {
+    /// Custom severity override (`"info"`, `"warning"`, or `"error"`).
+    pub severity: Option<Severity>,
+    /// Optional toggle to enable or disable the rule (`true` / `false`).
+    pub enabled: Option<bool>,
 }
 
 /// Workspace or project configuration loaded from `sorark.toml`.
@@ -49,6 +60,8 @@ pub struct SorarkConfig {
     pub exclude_paths: Vec<String>,
     /// Treat warnings as errors in CLI exit code calculation.
     pub fail_on_warnings: bool,
+    /// Per-rule overrides mapped by rule ID (`[rules.ARK-STOR-002]`).
+    pub rules: HashMap<String, RuleOverride>,
 }
 
 impl Default for SorarkConfig {
@@ -62,6 +75,7 @@ impl Default for SorarkConfig {
             disabled_rules: Vec::new(),
             exclude_paths: vec!["target".to_string(), ".git".to_string()],
             fail_on_warnings: false,
+            rules: HashMap::new(),
         }
     }
 }
@@ -85,22 +99,66 @@ impl SorarkConfig {
         })
     }
 
+    /// Looks up a [`RuleOverride`] case-insensitively by `rule_id`.
+    #[must_use]
+    pub fn rule_override(&self, rule_id: &str) -> Option<&RuleOverride> {
+        self.rules
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case(rule_id))
+            .map(|(_, v)| v)
+    }
+
     /// Returns `true` if `rule_id` is enabled under this configuration.
     #[must_use]
     pub fn is_rule_enabled(&self, rule_id: &str) -> bool {
-        !self
+        if self
             .disabled_rules
             .iter()
             .any(|r| r.eq_ignore_ascii_case(rule_id))
+        {
+            return false;
+        }
+        if let Some(ov) = self.rule_override(rule_id)
+            && ov.enabled == Some(false)
+        {
+            return false;
+        }
+        true
+    }
+
+    /// Returns the effective [`Severity`] for `rule_id`, applying any `[rules.<RULE_ID>]` override.
+    #[must_use]
+    pub fn effective_severity(&self, rule_id: &str, default_severity: Severity) -> Severity {
+        self.rule_override(rule_id)
+            .and_then(|ov| ov.severity)
+            .unwrap_or(default_severity)
+    }
+
+    /// Applies any configured `[rules.<RULE_ID>] severity = "..."` overrides in place.
+    pub fn apply_severity_overrides(&self, diagnostics: &mut [Diagnostic]) {
+        for diag in diagnostics {
+            if let Some(ov) = self.rule_override(&diag.rule_id)
+                && let Some(sev) = ov.severity
+            {
+                diag.severity = sev;
+            }
+        }
     }
 
     /// Returns the set of disabled rule IDs normalized to uppercase.
     #[must_use]
     pub fn disabled_rule_set(&self) -> HashSet<String> {
-        self.disabled_rules
+        let mut set: HashSet<String> = self
+            .disabled_rules
             .iter()
             .map(|r| r.to_ascii_uppercase())
-            .collect()
+            .collect();
+        for (k, v) in &self.rules {
+            if v.enabled == Some(false) {
+                set.insert(k.to_ascii_uppercase());
+            }
+        }
+        set
     }
 
     /// Generates a documented starter `sorark.toml` template.
@@ -130,6 +188,10 @@ disabled_rules = []
 
 # Paths to skip during recursive workspace scans
 exclude_paths = ["target", ".git"]
+
+# Optional per-rule severity or enablement overrides:
+# [rules.ARK-STOR-002]
+# severity = "error"
 "#
     }
 }

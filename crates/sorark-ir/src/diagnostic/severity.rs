@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::str::FromStr;
 
 /// Severity level of a SORARK diagnostic finding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -31,6 +32,37 @@ impl Severity {
             Self::Warning => "warning",
             Self::Error => "error",
         }
+    }
+
+    /// Maps SORARK severity to the GitHub Actions workflow command level (`notice`, `warning`, `error`).
+    #[must_use]
+    pub const fn github_command(self) -> &'static str {
+        match self {
+            Self::Info => "notice",
+            Self::Warning => "warning",
+            Self::Error => "error",
+        }
+    }
+
+    /// Parses a severity level case-insensitively (`info`, `warning`/`warn`, `error`/`err`).
+    #[must_use]
+    pub fn from_str_ignore_case(raw: &str) -> Option<Self> {
+        match raw.trim().to_ascii_lowercase().as_str() {
+            "info" | "note" => Some(Self::Info),
+            "warning" | "warn" => Some(Self::Warning),
+            "error" | "err" => Some(Self::Error),
+            _ => None,
+        }
+    }
+}
+
+impl FromStr for Severity {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_str_ignore_case(s).ok_or_else(|| {
+            format!("Invalid severity `{s}` (expected `info`, `warning`, or `error`)")
+        })
     }
 }
 

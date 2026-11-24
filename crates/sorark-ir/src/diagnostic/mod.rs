@@ -6,6 +6,6 @@ mod severity;
 mod span;
 
 pub use builder::{Diagnostic, DiagnosticBuilder};
-pub use catalog::{RuleDescriptor, builtin_rule_catalog};
+pub use catalog::{RuleDescriptor, builtin_rule_catalog, find_rule_descriptor};
 pub use severity::{Confidence, RuleCategory, Severity};
 pub use span::SourceSpan;

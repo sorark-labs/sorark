@@ -10,11 +10,11 @@ pub mod model;
 
 pub use config::{
     ConfigError, DEFAULT_WASM_WARN_BYTES, MAINNET_LEDGER_ENTRY_MAX_BYTES, MAINNET_MAX_ENTRY_TTL,
-    MAINNET_MIN_PERSISTENT_ENTRY_TTL, MAINNET_MIN_TEMP_ENTRY_TTL, SorarkConfig,
+    MAINNET_MIN_PERSISTENT_ENTRY_TTL, MAINNET_MIN_TEMP_ENTRY_TTL, RuleOverride, SorarkConfig,
 };
 pub use diagnostic::{
     Confidence, Diagnostic, DiagnosticBuilder, RuleCategory, RuleDescriptor, Severity, SourceSpan,
-    builtin_rule_catalog,
+    builtin_rule_catalog, find_rule_descriptor,
 };
 pub use model::{
     ContractModule, EnumSpec, EnumVariantSpec, ErrorEnumSpec, FunctionParamSpec, FunctionSpec,
@@ -101,6 +101,25 @@ mod tests {
             .unwrap();
         assert_eq!(cfg.max_entry_ttl, 3_110_400);
         assert!(cfg.is_rule_enabled("ARK-STOR-001"));
+    }
+
+    #[test]
+    fn config_supports_per_rule_severity_and_enabled_overrides() {
+        let toml_raw = r#"
+            [rules.ARK-STOR-002]
+            severity = "error"
+
+            [rules.ARK-UPG-002]
+            enabled = false
+        "#;
+        let cfg = SorarkConfig::from_toml_str(toml_raw, "sorark.toml").unwrap();
+        assert!(!cfg.is_rule_enabled("ARK-UPG-002"));
+        assert_eq!(
+            cfg.effective_severity("ARK-STOR-002", Severity::Warning),
+            Severity::Error
+        );
+        assert!(find_rule_descriptor("ARK-STOR-005").is_some());
+        assert_eq!(builtin_rule_catalog().len(), 15);
     }
 
     #[test]
