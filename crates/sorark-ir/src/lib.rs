@@ -157,8 +157,8 @@ mod tests {
         let estimated = module
             .estimate_type_xdr_bytes(&TypeRef::Custom("PriceFeed".to_string()))
             .unwrap();
-        // ScMap header (12) + 3 * ScSymbol(5 chars -> 16 bytes each = 48) + Address(40) + I128(20) + BytesN(1024 -> 1032) = 1152
-        assert_eq!(estimated, 1152);
+        // ScMap header (12) + ScSymbol("admin" -> 16) + ScSymbol("price" -> 16) + ScSymbol("blob" -> 12) + Address(40) + I128(20) + BytesN(1024 -> 1032) = 1148
+        assert_eq!(estimated, 1148);
     }
 
     #[test]
