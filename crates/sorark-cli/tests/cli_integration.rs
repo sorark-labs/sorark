@@ -116,7 +116,7 @@ fn cli_sarif_and_wasm_binary_diff_work_end_to_end() {
     )
     .unwrap();
 
-    // 1. Inspect v1.wasm
+    // 1. Inspect v1.wasm (text and markdown formats)
     let inspect_out = Command::new(sorark_bin())
         .args(["inspect", v1_wasm_path.to_str().unwrap()])
         .output()
@@ -130,6 +130,24 @@ fn cli_sarif_and_wasm_binary_diff_work_end_to_end() {
     assert!(
         inspect_text.contains("struct Position"),
         "inspect: {inspect_text}"
+    );
+
+    let inspect_md_out = Command::new(sorark_bin())
+        .args([
+            "inspect",
+            v1_wasm_path.to_str().unwrap(),
+            "--format",
+            "markdown",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(inspect_md_out.status.code(), Some(0));
+    let inspect_md = String::from_utf8_lossy(&inspect_md_out.stdout);
+    assert!(
+        inspect_md.contains("### Summary Statistics")
+            && inspect_md.contains("| Struct | Fields |")
+            && inspect_md.contains("| `Position` | `shares: i128` |"),
+        "inspect markdown: {inspect_md}"
     );
 
     // 2. Diff v1.wasm vs v2.wasm in SARIF format

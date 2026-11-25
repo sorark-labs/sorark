@@ -306,7 +306,8 @@ env.storage().persistent().set(&DataKey::Order(id), &order);
 ## Documentation, Roadmap & Contributing
 
 * **Internal Architecture:** Read [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for a deep dive into the two-pass AST engine, SEP-0048 XDR decoder, and `ContractModule` intermediate representation.
-* **Roadmap:** Browse [`ROADMAP.md`](./ROADMAP.md) for upcoming milestones (`v0.2.0` – `v0.4.0`).
+* **Ecosystem Benchmarks:** Read [`docs/BENCHMARKS.md`](./docs/BENCHMARKS.md) for real-world static analysis results and timing across all 36 official [`stellar/soroban-examples`](https://github.com/stellar/soroban-examples) contract workspaces.
+* **Roadmap:** Browse [`ROADMAP.md`](./ROADMAP.md) for completed and upcoming milestones (`v0.2.0` – `v0.4.0`).
 * **Contributing:** Read [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, Rust 2024 coding standards, and step-by-step instructions on adding a new `AstRule` or `DiffRule` in its own isolated module.
 
 ## License

@@ -9,7 +9,7 @@ mod text;
 
 use clap::ValueEnum;
 use github::render_diagnostics_github;
-use inspect::render_wasm_inspection_text;
+use inspect::{render_wasm_inspection_markdown, render_wasm_inspection_text};
 use json::render_diagnostics_json;
 use markdown::{render_diagnostics_markdown, render_rule_explain_markdown, render_rules_markdown};
 use sarif::render_diagnostics_sarif;
@@ -86,9 +86,8 @@ pub fn render_wasm_inspection(
 ) -> Result<String, serde_json::Error> {
     match format {
         OutputFormat::Json | OutputFormat::Sarif => serde_json::to_string_pretty(report),
-        OutputFormat::Markdown | OutputFormat::Text | OutputFormat::Github => {
-            Ok(render_wasm_inspection_text(report))
-        }
+        OutputFormat::Markdown => Ok(render_wasm_inspection_markdown(report)),
+        OutputFormat::Text | OutputFormat::Github => Ok(render_wasm_inspection_text(report)),
     }
 }
 
